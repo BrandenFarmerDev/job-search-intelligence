@@ -755,7 +755,7 @@ This is the canonical todo list. Code/configuration verification and live provid
 - [x] Owner accepted Google terms; create project, enable Sheets API and create a service identity with no project IAM roles.
 - [x] Microsoft Entra/Graph removed from version-one dependencies; runtime routes, Workflow reads and UI are gated off while the future implementation remains documented and tested.
 - [x] Google JSON key created for the unprivileged reader, stored only as the production Worker secret, downloaded copy deleted, and tracker-only Viewer grant applied.
-- [ ] Dedicated Cloudflare GitHub deployment token: final creation awaits the specific credential confirmation.
+- [x] Dedicated 90-day Cloudflare GitHub deployment token created with D1, Pages and Workers Scripts write access and stored in both protected GitHub environments.
 - [x] GitHub Dependabot vulnerability alerts enabled with no open alerts; automatic security updates remain disabled to match the portfolio repository.
 
 ### Phase 1 ? foundation and infrastructure
@@ -765,8 +765,8 @@ This is the canonical todo list. Code/configuration verification and live provid
 - [x] Implement independently verified owner JWT authorization, exact-origin mutations, bounded requests/provider responses, safe error codes and encrypted credentials.
 - [x] Configure GitHub preview/production environments, branch policies, variables and account-ID secrets.
 - [x] Active main ruleset matches portfolio: PR, updated branch, quality/CodeQL checks, no force push/deletion/bypass. Enable secret scanning and push protection; read-only Actions default.
-- [ ] Provision the dedicated deploy-token secret in both environments after approval.
-- [ ] Hosted CI/CodeQL on the authorized pull request and review of every reported security finding before release.
+- [x] Provision the dedicated deploy-token secret in both environments; deployment remains disabled by the repository variable.
+- [x] Hosted CI and CodeQL pass on PR #1 with zero open code-scanning or Dependabot alerts.
 
 ### Phase 2 ? Outlook
 
@@ -854,6 +854,6 @@ This is the canonical todo list. Code/configuration verification and live provid
 - Workflows `job-intelligence-sync-preview` / `job-intelligence-sync-production`; unique encryption keys provisioned only as Worker secrets.
 - Gateways `job-intelligence-preview` / `job-intelligence-production`: authenticated, logs/cache off, zero-data retention; no model calls.
 - Owner Access test app `edb7d94d-dac3-4b2f-ae5d-6e2f06c78b90`, production `243a269b-a9da-4adb-926d-6a783bd58a5e`; owner-email policy `2f08f97a-f619-47d4-abd1-dbe6ca15a943`. Distinct audiences independently checked by backend. workers.dev/version previews disabled.
-- GitHub main ruleset `24341809` matches portfolio `24193519`; preview/production environments configured. Deploy-token secret pending. Source remains at the initial remote commit.
+- GitHub main ruleset `24341809` matches portfolio `24193519`; preview/production environments and dedicated deploy-token secrets are configured. PR #1 contains the reviewed implementation, with hosted quality and CodeQL checks passing.
 - Google project `premium-fuze-510400-n4`, Sheets API enabled. Reader `job-tracker-production-reader@premium-fuze-510400-n4.iam.gserviceaccount.com` has no project IAM roles and Viewer access only to the identified tracker. Its JSON credential is a production Worker secret; the downloaded copy was deleted. Preview has no tracker identity or credential.
 - Full results and limitations: [docs/qa.md](docs/qa.md). Resume instructions: [AGENT_HANDOFF.md](AGENT_HANDOFF.md).

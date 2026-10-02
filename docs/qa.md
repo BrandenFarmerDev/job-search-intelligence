@@ -41,7 +41,7 @@ Ignored local evidence: quality/deployment logs and `tmp/qa` browser screenshots
 
 ## Security and acceptance limits
 
-GitHub secret scanning/push protection are enabled and the active main ruleset matches the portfolio: PRs, current branches, required quality and CodeQL checks, and no force push, deletion or bypass. Dependabot vulnerability alerts are enabled with no open alerts; automatic security updates remain disabled to match the portfolio. Hosted CI/CodeQL will be verified on the authorized pull request.
+GitHub secret scanning/push protection are enabled and the active main ruleset matches the portfolio: PRs, current branches, required quality and CodeQL checks, and no force push, deletion or bypass. Hosted quality and CodeQL pass on PR #1. CodeQL and Dependabot vulnerability alert queries report zero open findings; automatic security updates remain disabled to match the portfolio.
 
 Microsoft Entra/Graph is outside version one. Its future implementation remains covered by tests, while `MICROSOFT_GRAPH_ENABLED=false` blocks its API routes, Workflow reads and frontend controls in all checked-in environments. The manual owner-only classic-Outlook path is operational. Google is complete: tracker-only Viewer access, production-only Worker secret, successful initial read and unchanged replay, with no local credential copy retained.
 

@@ -8,9 +8,9 @@ Implementation is local and provider acceptance is incomplete. Section 21 of the
 - [x] Local full quality: zero lint warnings; all four coverage metrics >=85% in every suite; duplication below 3%; fresh generated bindings, strict TypeScript, builds/migrations and dependency audit.
 - [x] Pinned Actions validated by local actionlint; isolated environment Worker dry runs.
 - [x] Secret scanning/push protection enabled; local secrets/private files/builds/reports ignored.
-- [ ] GitHub CI/CodeQL on the published revision; all severities of security/code-scanning findings reviewed/resolved.
+- [x] GitHub CI/CodeQL pass on PR #1; CodeQL and dependency alert queries report zero open findings.
 - [x] Dependabot vulnerability alerts enabled with no open alerts; automatic security updates remain disabled to match the portfolio repository.
-- [ ] Dedicated deployment token approved/provisioned in both GitHub environment secrets.
+- [x] Dedicated 90-day deployment token provisioned in both protected GitHub environment secrets; deployments remain disabled.
 
 ## Private deployment and browser
 

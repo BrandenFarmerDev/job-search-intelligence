@@ -58,9 +58,9 @@ Preview/production environments limit branches to `bfarmer/*` / `main`. Exact en
 | VITE_API_BASE_URL | Variable; exact environment API origin |
 | SITE_ORIGIN | Variable; exact environment frontend origin |
 
-Use a dedicated deployment token with Workers Scripts/D1/Pages write permission and a 90-day expiration. These scopes cover those resource types account-wide. Do not reuse portfolio credentials. Existing configured custom domains should not need route changes during a code-only deployment; adding/changing connections requires additional zone permission. [Workers authorization](https://developers.cloudflare.com/workers/authorization/workers/).
+The dedicated deployment token has Workers Scripts/D1/Pages write permission and expires December 31, 2026. It is stored only as `CLOUDFLARE_API_TOKEN` in the protected preview and production environments. These scopes cover those resource types account-wide. Do not reuse portfolio credentials. Existing configured custom domains should not need route changes during a code-only deployment; adding/changing connections requires additional zone permission. [Workers authorization](https://developers.cloudflare.com/workers/authorization/workers/).
 
-Secret scanning and push protection are enabled; Actions defaults to read-only and cannot approve PRs. Dependabot vulnerability alerts are enabled with no open alerts, while automatic security updates remain disabled to match the portfolio repository. Local CI/CodeQL workflow files are pinned and actionlint-clean. Verify the hosted quality and CodeQL checks on the authorized pull request; do not dismiss findings to pass.
+Secret scanning and push protection are enabled; Actions defaults to read-only and cannot approve PRs. Dependabot vulnerability alerts are enabled with no open alerts, while automatic security updates remain disabled to match the portfolio repository. Local CI/CodeQL workflow files are pinned and actionlint-clean. Hosted quality and CodeQL pass on PR #1 with no open findings.
 
 ## Deploy and recover
 

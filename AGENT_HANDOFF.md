@@ -16,13 +16,13 @@ Final full quality passes: 135 tests (82 backend/24 frontend/11 shared/18 guard)
 
 Current deployments, resource IDs, browser evidence and rollback versions are recorded in plan section 21/docs/qa.md. Latest Pages: test 3025be04, production 445f4028; Workers test 84e345d6-3fd0-4186-8864-925df379e6a0 / production 4ef1a952-c717-4c40-8bb7-4b346135cc15.
 
+PR #1 is open from `bfarmer/scaffold-foundation`. Hosted quality and CodeQL pass with zero open CodeQL or Dependabot alerts. The dedicated 90-day Cloudflare deployment token is stored in both protected GitHub environments; `ENABLE_DEPLOYMENTS=false` keeps deployment jobs disabled.
+
 ## Remaining work and blockers
 
 1. Microsoft Entra/Graph is deferred beyond version one. Do not make directory access or Graph consent a version-one release dependency. The local Outlook path is operational; future Graph code remains limited to read-only User.Read/Mail.Read/offline_access and is gated by `MICROSOFT_GRAPH_ENABLED=false`.
 2. Google is complete. The production-only secret belongs to the unprivileged reader with Viewer access only to the identified tracker; no downloaded credential remains. Initial read changed 15 rows and immediate replay reported 15 unchanged. Preview has no production tracker access.
-3. Create the dedicated Cloudflare GitHub deployment token `job-search-intelligence-github-deploy`, provision it to both protected GitHub environments, and keep `ENABLE_DEPLOYMENTS=false` until release acceptance.
-4. Publish the reviewed branch and confirm hosted CI/CodeQL, all-severity code-scanning protection, Dependabot settings and the active main ruleset.
-5. Production has 65 local-email reconciliation records, most requiring owner review; two canonical applications were created before the tracker import. Browser 200% zoom and exhaustive date/review/correction/merge/export/deletion actions remain open.
+3. Production has 65 local-email reconciliation records, most requiring owner review; two canonical applications were created before the tracker import. Browser 200% zoom and exhaustive date/review/correction/merge/export/deletion actions remain open.
 
 Keep SYNC_ENABLED=false, AI_ENABLED=false, AI_DAILY_CALL_LIMIT=0 and ENABLE_DEPLOYMENTS=false until their relevant acceptance/authorization conditions are met.
 
