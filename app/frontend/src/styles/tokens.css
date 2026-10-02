@@ -1,0 +1,18 @@
+:root {
+  color-scheme: light dark;
+  --color-background: #f7f8fa;
+  --color-surface: #ffffff;
+  --color-text: #182333;
+  --color-muted: #526070;
+  --color-accent: #2056a4;
+  --space-section: 2.5rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #111820;
+    --color-surface: #19232f;
+    --color-text: #eef2f8;
+    --color-muted: #b6c2d1;
+    --color-accent: #a6caff;
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "name": "job-search-intelligence",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "app/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --names frontend,api --prefix-colors cyan,yellow \"npm run dev --workspace @job-search/frontend\" \"npm run dev --workspace @job-search/backend\"",
+    "dev:frontend": "npm run dev --workspace @job-search/frontend",
+    "dev:backend": "npm run dev --workspace @job-search/backend",
+    "lint": "eslint . --max-warnings 0",
+    "test": "npm run test --workspaces --if-present && vitest run",
+    "test:coverage": "npm run test:coverage --workspaces --if-present && vitest run --coverage",
+    "duplication": "jscpd app packages scripts --config jscpd.json",
+    "cf:types": "npm run cf:types --workspace @job-search/backend",
+    "cf:types:check": "npm run cf:types:check --workspace @job-search/backend",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc --project tsconfig.json",
+    "build": "npm run build --workspaces --if-present",
+    "db:migrate:local": "npm run db:migrate:local --workspace @job-search/backend",
+    "audit": "node scripts/audit.mjs",
+    "quality": "npm run lint && npm run test:coverage && npm run duplication && npm run cf:types:check && npm run typecheck && npm run build && npm run db:migrate:local && npm run audit"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@vitest/coverage-v8": "^5.0.2",
+    "concurrently": "^10.0.5",
+    "eslint": "^9.39.5",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.12.0",
+    "jscpd": "^5.3.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.0",
+    "undici": "^8.11.2",
+    "vitest": "^5.0.2"
+  },
+  "engines": {
+    "node": ">=24.19.0 <25",
+    "npm": ">=11.0.0 <12"
+  },
+  "overrides": {
+    "wrangler": {
+      "miniflare": {
+        "undici": "7.29.1"
+      }
+    }
+  }
+}

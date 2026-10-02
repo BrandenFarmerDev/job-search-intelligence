@@ -1,0 +1,159 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "job-search-intelligence-api-local",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": false
+  },
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "cold-union-464d.cloudflareaccess.com",
+    "ACCESS_AUD": "unconfigured",
+    "OWNER_EMAIL": "branden_farmer@live.com",
+    "MICROSOFT_GRAPH_ENABLED": "false",
+    "MICROSOFT_CLIENT_ID": "",
+    "MICROSOFT_REDIRECT_URI": "http://localhost:8787/api/job-intelligence/connections/microsoft/callback",
+    "HISTORICAL_START_DATE": "",
+    "GOOGLE_SPREADSHEET_ID": "",
+    "GOOGLE_SHEET_RANGE": "",
+    "AI_ENABLED": "false",
+    "AI_DAILY_CALL_LIMIT": "0",
+    "AI_MODEL": "@cf/meta/llama-3.1-8b-instruct-fast",
+    "AI_GATEWAY_ID": "",
+    "SYNC_ENABLED": "false",
+    "ALLOWED_ORIGIN": "http://localhost:5173"
+  },
+  "d1_databases": [
+    {
+      "binding": "JOB_SEARCH_DB",
+      "database_name": "job-search-intelligence-local",
+      "database_id": "00000000-0000-0000-0000-000000000001",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "env": {
+    "preview": {
+      "name": "job-search-intelligence-api-preview",
+      "workers_dev": false,
+      "preview_urls": false,
+      "vars": {
+        "ACCESS_TEAM_DOMAIN": "cold-union-464d.cloudflareaccess.com",
+        "ACCESS_AUD": "e3bb7f883d8b3694227d6cd2296e5af91335b9ffe7836a7073fc2b5d7ce7c72a",
+        "OWNER_EMAIL": "branden_farmer@live.com",
+        "MICROSOFT_GRAPH_ENABLED": "false",
+        "MICROSOFT_CLIENT_ID": "",
+        "MICROSOFT_REDIRECT_URI": "https://jobs-api-test.brandenfarmer.com/api/job-intelligence/connections/microsoft/callback",
+        "HISTORICAL_START_DATE": "2026-09-30T07:00:00Z",
+        "GOOGLE_SPREADSHEET_ID": "",
+        "GOOGLE_SHEET_RANGE": "",
+        "AI_ENABLED": "false",
+        "AI_DAILY_CALL_LIMIT": "0",
+        "AI_MODEL": "@cf/meta/llama-3.1-8b-instruct-fast",
+        "AI_GATEWAY_ID": "job-intelligence-preview",
+        "SYNC_ENABLED": "false",
+        "ALLOWED_ORIGIN": "https://jobs-test.brandenfarmer.com"
+      },
+      "d1_databases": [
+        {
+          "binding": "JOB_SEARCH_DB",
+          "database_name": "job-search-intelligence-preview",
+          "database_id": "98748289-ff68-43b3-8cbe-5bf30d0e04bf",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "routes": [
+        {
+          "pattern": "jobs-api-test.brandenfarmer.com",
+          "custom_domain": true
+        }
+      ],
+      "ai": {
+        "binding": "AI"
+      },
+      "workflows": [
+        {
+          "binding": "JOB_SYNC",
+          "name": "job-intelligence-sync-preview",
+          "class_name": "JobSyncWorkflow"
+        }
+      ],
+      "triggers": {
+        "crons": [
+          "0 14 * * *"
+        ]
+      },
+      "observability": {
+        "enabled": false
+      }
+    },
+    "production": {
+      "name": "job-search-intelligence-api",
+      "workers_dev": false,
+      "preview_urls": false,
+      "vars": {
+        "ACCESS_TEAM_DOMAIN": "cold-union-464d.cloudflareaccess.com",
+        "ACCESS_AUD": "0437e387d1f293f375b086ed18e6dcbb70448a03cbf9814ba8ed2196b097fab8",
+        "OWNER_EMAIL": "branden_farmer@live.com",
+        "MICROSOFT_GRAPH_ENABLED": "false",
+        "MICROSOFT_CLIENT_ID": "",
+        "MICROSOFT_REDIRECT_URI": "https://jobs-api.brandenfarmer.com/api/job-intelligence/connections/microsoft/callback",
+        "HISTORICAL_START_DATE": "2026-09-30T07:00:00Z",
+        "GOOGLE_SPREADSHEET_ID": "1klnHRC-edPKrC5FYGfHj2_NnH2aHNW0H2bqq9B_BQqk",
+        "GOOGLE_SHEET_RANGE": "'Branden Farmer Job Application Tracker'!A1:O1000",
+        "AI_ENABLED": "false",
+        "AI_DAILY_CALL_LIMIT": "0",
+        "AI_MODEL": "@cf/meta/llama-3.1-8b-instruct-fast",
+        "AI_GATEWAY_ID": "job-intelligence-production",
+        "SYNC_ENABLED": "false",
+        "ALLOWED_ORIGIN": "https://jobs.brandenfarmer.com"
+      },
+      "d1_databases": [
+        {
+          "binding": "JOB_SEARCH_DB",
+          "database_name": "job-search-intelligence-production",
+          "database_id": "9edee823-6086-4f4c-b544-cbf35bb03f3d",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "routes": [
+        {
+          "pattern": "jobs-api.brandenfarmer.com",
+          "custom_domain": true
+        }
+      ],
+      "ai": {
+        "binding": "AI"
+      },
+      "workflows": [
+        {
+          "binding": "JOB_SYNC",
+          "name": "job-intelligence-sync-production",
+          "class_name": "JobSyncWorkflow"
+        }
+      ],
+      "triggers": {
+        "crons": [
+          "0 14 * * *"
+        ]
+      },
+      "observability": {
+        "enabled": false
+      }
+    }
+  },
+  "ai": {
+    "binding": "AI"
+  },
+  "workflows": [
+    {
+      "binding": "JOB_SYNC",
+      "name": "job-intelligence-sync-local",
+      "class_name": "JobSyncWorkflow"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+@import "./tokens.css";
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--color-background); color: var(--color-text); font: 0.9375rem/1.65 system-ui, sans-serif; }
+a { color: var(--color-accent); text-underline-offset: 0.2em; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 4px; }
+.site-header, main, footer { max-width: 70rem; margin: 0 auto; padding: 1.25rem clamp(1rem, 4vw, 3rem); }
+.site-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; }
+.site-header a { font-weight: 650; }
+.site-header span, footer { color: var(--color-muted); font-size: 0.8125rem; }
+main { padding-top: var(--space-section); padding-bottom: var(--space-section); }
+h1 { max-width: 20ch; font-size: clamp(2rem, 5vw, 3rem); line-height: 1.15; letter-spacing: -0.035em; }
+h2 { font-size: 1.5rem; }
+h3 { font-size: 1.125rem; }
+p { max-width: 70ch; }
+.intro { font-size: 1.125rem; }
+.eyebrow { color: var(--color-muted); font-size: 0.8125rem; }
+.api-status { padding: 0.75rem 1rem; background: var(--color-surface); }
+section { margin-top: var(--space-section); }
+.capabilities { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: 1.5rem; }
+.capabilities p { color: var(--color-muted); }
+.skip-link { position: absolute; top: -5rem; left: 1rem; padding: 0.75rem; background: var(--color-surface); }
+.skip-link:focus { top: 1rem; }
+.toolbar { display: flex; gap: 1rem; align-items: end; flex-wrap: wrap; margin: 1rem 0; }
+button, input, select { font: inherit; color: inherit; background: var(--color-surface); border: 1px solid var(--color-muted); border-radius: 0.25rem; padding: 0.5rem 0.7rem; }
+button { cursor: pointer; }
+button:disabled { opacity: 0.5; cursor: default; }
+label { display: grid; gap: 0.35rem; }
+.metrics, .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 1rem; }
+.metrics > div { background: var(--color-surface); padding: 1rem; }
+dt, .muted { color: var(--color-muted); }
+dd { font-size: 1.65rem; margin: 0; }
+.table-scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; text-align: left; }
+th, td { padding: 0.75rem; border-bottom: 1px solid var(--color-muted); }
+.chart-row { display: grid; gap: 0.25rem; }
+meter { width: 100%; }
+article, details { margin-block: 1rem; }
+[role="alert"] { border-left: 3px solid var(--color-accent); padding-left: 1rem; }
