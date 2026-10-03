@@ -1,37 +1,31 @@
 # Agent handoff — October 3, 2026
 
-Resume in `C:\GitHub\Apps\job-search-intelligence`, branch `bfarmer/deployment-secret-wiring`. Environment cwd may still point to portfolio; always set workdir.
+Work in `C:\GitHub\Apps\job-search-intelligence`; environment cwd may point to portfolio. Current documentation branch: `bfarmer/release-verification`. PR #1 and deployment fix PR #3 merged. Main implementation commit `6063dcc` is deployed and verified; documentation follow-up changes no runtime code.
 
-## Authorization and decisions
+## Decisions
 
-The owner authorized GitHub/Cloudflare deployment authentication, a commit and push on the current `bfarmer/*` branch, and a brief PR. Never add Codex/Copilot coauthors. Microsoft Entra/Graph is outside version one and remains disabled at runtime. Paid AI budget $0; start September 30, 2026 midnight Pacific (`2026-09-30T07:00:00Z`). No email sending or tracker write-back. Separate QA agents must be cost-effective.
+Owner authorized commit/push, reviewed PR merge and production deployment. Never add Codex/Copilot coauthors. Commit titles start with current Pacific date/time; keep messages brief. Track work in architecture plan section 21. Use cost-effective independent QA.
 
-Section 21 of `Job_Intelligence_Architecture_and_Implementation_Plan.md` is the canonical todo/acceptance tracker. Read AGENTS.md, docs/architecture.md, docs/deployment.md, docs/qa.md and docs/release-checklist.md before changes.
+Keep SYNC_ENABLED=false, AI_ENABLED=false, AI_DAILY_CALL_LIMIT=0 and MICROSOFT_GRAPH_ENABLED=false. Paid AI budget $0; import floor September 30, 2026 midnight Pacific. No mail sending or tracker write-back. Graph is implemented/tested but deferred beyond version one; Google reader setup and live read/replay are complete.
 
-## Completed and validated
+## Quality and review
 
-Private dashboard, owner JWT/origin enforcement, classic-Outlook COM import, Sheets reader, rules/optional capped AI, reconciliation/manual audit, durable Workflow, analytics/follow-ups and privacy controls are implemented and deployed. The future delegated read-only OAuth/Graph path remains implemented and tested but is gated off in the API, workflow and UI for version one. Remote migrations 0001–0003 are applied to both D1 databases. Isolated resources and owner Access/custom SSL domains configured.
+Full quality passes: 323 tests (97 backend, 196 frontend, 12 shared, 18 deployment guard), every coverage metric above 85%, 0% duplication and zero audit vulnerabilities. Actionlint passes. Production-readiness code fix preserves canonical associations after owner date correction; failing-before/passing-after regression and fresh GPT-6 Luna QA passed. Same-family independent review was explicitly allowed by the owner and contract. Independent code/security QA reviewed the deployment correction before commit; preview approval mitigation addressed its finding.
 
-Migration `0003_normalize_application_status.sql` was applied to preview and production D1 on October 3. Both report schema version 3, have the normalization trigger, and have no legacy `submitted` statuses; application counts remained 1 and 16 respectively. Worker/Pages deployment and release acceptance remain separate work.
+## Release and remaining work
 
-Final full quality passes: 323 tests (97 backend/196 frontend/12 shared/18 guard), all four coverage metrics above 85%, 0% duplication, zero lint warnings/dependency audit findings. The current PR review findings have fixes for Outlook export syntax, status defaults, merge event history, configured AI model use, skipped-run finish times, and stale documentation. An obsolete untracked test targeting the removed dashboard page was preserved under ignored `tmp/`. First production fallback import processed all 76 bounded messages and produced two canonical applications. The broad first pass was tightened to 65 prospective matches; existing uncertain records remain for owner review. Google initial sync changed 15 tracker rows and the immediate replay reported all 15 unchanged. Private exports and the downloaded Google credential were removed.
+GitHub verification succeeded; ENABLE_DEPLOYMENTS=true. The reusable job initially received empty environment secrets and stopped before mutations. Deployment now binds its protected environment directly. Both dedicated-token deployments and authenticated health passed; exact evidence follows. Preview requires BrandenFarmerDev approval and disables administrator bypass; review the exact run/ref/commit before releasing secrets. Token scopes remain account-wide for Workers/D1/Pages.
 
-Current deployments, resource IDs, browser evidence and rollback versions are recorded in plan section 21/docs/qa.md. Latest preview Pages 34363a79 / Worker 21a3a561-f2d6-4eb4-839b-4fd312adb6ae. Pre-release production Pages 445f4028 / Worker 4ef1a952-c717-4c40-8bb7-4b346135cc15; record the release result in PR #1. Final date-correction association regression and independent GPT-6 Luna QA pass.
+Preview live date filtering, correction, review resolution, merge with consistent offer metrics, CSV export, light/dark and native 200% zoom passed. Permanent preview deletion alone remains pending action-time user consent. Its dialog is on Chrome tab 313605168; ignored synthetic backup `tmp/preview-before-release-delete.sql` exists. Do not click permanent deletion without consent. Production remains 16 applications with 79 review items awaiting owner review.
 
-PR #1 merged from `bfarmer/scaffold-foundation`; deployment follow-up is on `bfarmer/deployment-secret-wiring`. Hosted quality and CodeQL pass with zero open CodeQL or Dependabot alerts. The dedicated 90-day Cloudflare deployment token is stored in both protected GitHub environments; Owner authorized merge/deploy. GitHub email verification succeeded and `ENABLE_DEPLOYMENTS=true` was saved. Preview deployed via existing local OAuth; GitHub token execution is unverified until the production workflow succeeds.
+Chrome browser ID 4; production tab 313605170. After compaction use `cua.rewriteDocumentation`. Do not touch unrelated tabs or publish private artifacts.
 
-## Remaining work and blockers
+## Verified release — October 3, 2026
 
-1. Microsoft Entra/Graph is deferred beyond version one. Do not make directory access or Graph consent a version-one release dependency. The local Outlook path is operational; future Graph code remains limited to read-only User.Read/Mail.Read/offline_access and is gated by `MICROSOFT_GRAPH_ENABLED=false`.
-2. Google is complete. The production-only secret belongs to the unprivileged reader with Viewer access only to the identified tracker; no downloaded credential remains. Initial read changed 15 rows and immediate replay reported 15 unchanged. Preview has no production tracker access.
-3. Production has 65 local-email reconciliation records, most requiring owner review; two canonical applications were created before the tracker import. Final preview passed native 200% zoom, light/dark, date filter, correction, review resolution, merge/offer metrics and CSV export. Permanent preview deletion alone awaits action-time consent; synthetic backup is in ignored tmp/preview-before-release-delete.sql. Independent operational QA approved the authorized release with that explicit limit.
+PR #1 and the reviewed deployment fix in PR #3 are merged. [Production workflow](https://github.com/BrandenFarmerDev/job-search-intelligence/actions/runs/37138746361) and [preview workflow](https://github.com/BrandenFarmerDev/job-search-intelligence/actions/runs/37138507982) passed quality, resource/origin guards, the additive migration check (none pending), Worker deployment, Pages upload and anonymous Access verification using the dedicated GitHub token. The first production attempt stopped before mutations; the regular environment-bound job fixes its secret-resolution failure.
 
-Keep SYNC_ENABLED=false, AI_ENABLED=false, AI_DAILY_CALL_LIMIT=0 and MICROSOFT_GRAPH_ENABLED=false. Await production workflow success and verify authenticated production About/Overview plus anonymous Access protection; then record evidence in PR #1.
+Production Worker `f143dd81-7865-45a2-81ff-9f44cb79d46a`, Pages `e04e088b`; preview Worker `d0af18d5-1947-42a7-9db5-816dc10cdc35`, Pages `1ceadd05`. Compatible pre-release rollback: production Worker `4ef1a952-c717-4c40-8bb7-4b346135cc15` / Pages `445f4028`; preview Worker `21a3a561-f2d6-4eb4-839b-4fd312adb6ae` / Pages `34363a79`.
 
-## Resuming browser work
+Authenticated production About reports API connected and the final dashboard loads 16 applications; read-only D1 count remained 16 before/after deployment. Inspected application console has no warnings/errors. Logs confirm SYNC_ENABLED=false, AI_ENABLED=false, AI_DAILY_CALL_LIMIT=0 and MICROSOFT_GRAPH_ENABLED=false. Preview environment requires owner approval with administrator bypass disabled; its waiting job was released only after checking reviewed commit `db60be7`. The token still has account-wide resource-type permissions, so every future preview approval must review the exact ref/commit.
 
-Use the computer-use skill; after summary call `cua.rewriteDocumentation`. Reuse Chrome browser ID 4; existing preview/health tabs 313605168/313605169. Google setup is complete. Tab IDs can become stale; recover only in the selected browser. Re-mark pending tabs as handoffs before ending a new turn.
-
-## October 3 deployment follow-up
-
-PR #1 merged as `bcbf6b0` after hosted quality/CodeQL passed. Production run [37137725830](https://github.com/BrandenFarmerDev/job-search-intelligence/actions/runs/37137725830) stopped before any Cloudflare change: deployment guard received empty secret values despite both secrets being present in the protected production environment. Follow-up branch `bfarmer/deployment-secret-wiring` binds deployment directly to its protected environment as a regular CI job, avoiding the observed reusable-workflow secret-resolution failure. Deployment steps, branch restrictions, permissions and the fail-closed guard remain in place; no broad secret inheritance is introduced. Actual preview/production GitHub deployment still needs verification.
+Limits: live permanent preview deletion remains consent-pending; its automated regressions pass. Production uncertainty review is owner work. Future Graph and optional free-only AI activation require separate acceptance; no paid AI or email sending is enabled.

@@ -10,7 +10,7 @@ Implementation is in PR #1. Version one uses local Outlook import and the verifi
 - [x] Secret scanning/push protection enabled; local secrets/private files/builds/reports ignored.
 - [x] GitHub CI/CodeQL pass on PR #1; CodeQL and dependency alert queries report zero open findings.
 - [x] Dependabot vulnerability alerts enabled with no open alerts; automatic security updates remain disabled to match the portfolio repository.
-- [x] Dedicated 90-day deployment token provisioned in both protected GitHub environment secrets; deployment enabled October 3 under owner release authorization; actual GitHub token execution remains to be verified.
+- [x] Dedicated 90-day deployment token provisioned in both protected GitHub environment secrets; deployment enabled October 3 under owner release authorization; token execution verified in preview and production GitHub runs.
 
 ## Private deployment and browser
 
@@ -18,7 +18,7 @@ Implementation is in PR #1. Version one uses local Outlook import and the verifi
 - [x] Migrations 0001–0003 applied remotely to both D1 databases; workers.dev/version preview routes disabled. Schema version 3, trigger presence, zero legacy statuses and unchanged application counts verified October 3.
 - [x] SSL custom frontend domains configured; proxied test CNAME points to preview branch.
 - [x] Unauthenticated test API returns expected owner Access challenge; backend verifies signed JWT independently.
-- [x] Final reviewed preview frontend/Worker deployed and authenticated About health passed October 3. Prior production About health passed; final production deployment/smoke remain pending.
+- [x] Final reviewed preview and production Worker/Pages deployed through GitHub; authenticated About health passed October 3 in both environments.
 - [x] Desktop/mobile/system light/dark, keyboard skip link, synthetic timeline/source filter, empty production and application console checks.
 - [x] October 3 final preview: native Chrome 200% zoom without overflow, light/dark, date filter, correction, review resolution, merge with matching offer metrics and CSV export.
 - [ ] Live permanent preview deletion/pause check: pending action-time user consent; automated regressions pass.
@@ -40,6 +40,7 @@ Implementation is in PR #1. Version one uses local Outlook import and the verifi
 
 - [x] Owner authorized GitHub source publication and a brief reviewed PR. Do not add Codex/Copilot coauthors.
 - [x] Owner authorized merge/deployment; ENABLE_DEPLOYMENTS=true saved after GitHub verification.
-- [ ] Production workflow success and authenticated smoke recorded in PR release evidence. SYNC_ENABLED remains false.
+- [x] [Production workflow](https://github.com/BrandenFarmerDev/job-search-intelligence/actions/runs/37138746361) succeeded; authenticated About/Overview passed and 16 applications remained intact. SYNC_ENABLED remains false.
+- [x] Preview owner deployment approval required and administrator bypass disabled; exact reviewed commit checked before approval.
 - [ ] Future optional AI activation: verify free-only account behavior and hard quotas first; AI remains disabled with $0 paid limit.
 - [x] Separate cost-effective GPT-6 Luna QA review is complete on final behavior; concrete findings fixed and rechecked.
