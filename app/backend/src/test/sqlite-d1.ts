@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 type Value = string | number | boolean | null;
 export function createTestD1() {
   const database = new DatabaseSync(":memory:"); database.exec("PRAGMA foreign_keys=ON");
-  for (const name of ["0001_app_metadata.sql", "0002_job_intelligence.sql"]) database.exec(readFileSync(new URL(`../../migrations/${name}`, import.meta.url), "utf8"));
+  for (const name of ["0001_app_metadata.sql", "0002_job_intelligence.sql", "0003_normalize_application_status.sql"]) database.exec(readFileSync(new URL(`../../migrations/${name}`, import.meta.url), "utf8"));
   const statement = (sql: string, raw: Value[] = []) => {
     const values = raw.map((value) => typeof value === "boolean" ? Number(value) : value);
     return { bind: (...next: Value[]) => statement(sql, next), run: async () => ({meta:{changes:Number(database.prepare(sql).run(...values).changes)}}),

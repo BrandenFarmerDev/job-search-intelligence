@@ -22,16 +22,21 @@ it("validates model schema and always requires review",()=>{
  expect(validateAi({type:"offer",confidence:0.99})).toMatchObject({needsReview:true,type:"offer"});
 });
 it("caches decisions, honors hard daily caps, and fails safely on invalid model output",async()=>{
- const {env,db,close}=fixture();env.AI_ENABLED="true";env.AI_DAILY_CALL_LIMIT="2";
+ const {env,db,close}=fixture();env.AI_ENABLED="true";env.AI_DAILY_CALL_LIMIT="2";env.AI_MODEL="@cf/meta/llama-3.1-8b-instruct-fast";
  vi.mocked(env.AI.run).mockResolvedValue({response:'{"type":"offer","confidence":0.9}'});
  expect(await decide(env,"a","Job update","owner@example.com")).toMatchObject({type:"offer",needsReview:true});
- await decide(env,"a","Job update","owner@example.com");expect(env.AI.run).toHaveBeenCalledTimes(1);
+ await decide(env,"a","Job update","owner@example.com");expect(env.AI.run).toHaveBeenCalledTimes(1);expect(env.AI.run).toHaveBeenCalledWith(env.AI_MODEL,expect.any(Object),expect.any(Object));
  vi.mocked(env.AI.run).mockRejectedValue(new Error("provider private details"));expect(await decide(env,"b","Job status","")).toMatchObject({type:"other_job_related"});
  await decide(env,"c","Another job","");expect(env.AI.run).toHaveBeenCalledTimes(2);
  expect(await db.prepare("SELECT calls FROM ai_usage").first()).toMatchObject({calls:2});
  env.AI_DAILY_CALL_LIMIT="101";await decide(env,"d","Job unknown","");expect(env.AI.run).toHaveBeenCalledTimes(2);close();
 });
 it("ignores invalid structured model output",async()=>{
- const {env,close}=fixture();env.AI_ENABLED="true";env.AI_DAILY_CALL_LIMIT="5";vi.mocked(env.AI.run).mockResolvedValue({response:{type:"wrong"}});
+ const {env,close}=fixture();env.AI_ENABLED="true";env.AI_DAILY_CALL_LIMIT="5";env.AI_MODEL="@cf/meta/llama-3.1-8b-instruct-fast";vi.mocked(env.AI.run).mockResolvedValue({response:{type:"wrong"}});
  expect((await decide(env,"a","Job notice","")).reason).toBe("Uncertain event");close();
+});
+it("does not run an unreviewed model even when AI is enabled",async()=>{
+ const {env,db,close}=fixture();env.AI_ENABLED="true";env.AI_DAILY_CALL_LIMIT="5";env.AI_MODEL="unknown-model";
+ expect((await decide(env,"a","Job notice","")).needsReview).toBe(true);
+ expect(env.AI.run).not.toHaveBeenCalled();expect(await db.prepare("SELECT calls FROM ai_usage").first()).toBeNull();close();
 });

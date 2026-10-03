@@ -8,12 +8,12 @@ Final `npm run quality` passes after the local Outlook fallback and COM-to-Graph
 
 | Suite | Tests | Statements | Branches | Functions | Lines |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Backend | 82 | 99.17% | 96.55% | 100% | 100% |
-| Frontend | 24 | 96.80% | 88.97% | 100% | 100% |
-| Shared | 11 | 100% | 100% | 100% | 100% |
+| Backend | 96 | 99.23% | 96.61% | 100% | 100% |
+| Frontend | 196 | 99.24% | 94.36% | 98.74% | 99.46% |
+| Shared | 12 | 100% | 100% | 100% | 100% |
 | Deployment guard | 18 | 100% | 100% | 100% | 100% |
 
-135 tests total; every suite independently enforces all four 85% floors. Coverage excludes declarations, bootstrap/test utilities and thin CLI wrappers, not maintained runtime modules. A local credential-pattern scan of tracked/untracked source candidates found no private-key, Google API-key or GitHub-token patterns; this is a limited scan, not a hosted CodeQL result.
+322 tests total; every suite independently enforces all four 85% floors. Coverage excludes declarations, bootstrap/test utilities and thin CLI wrappers, not maintained runtime modules. The Outlook exporter helper passed a PowerShell parser/runtime smoke check for present and missing MAPI values. A local credential-pattern scan of source candidates found no private-key, Google API-key or GitHub-token patterns.
 
 Meaningful DB/provider/UI regressions cover signed JWT validation, exact-origin authorization, bounded responses, PKCE and encrypted rotation, leases and checkpoint atomicity, delta rebaseline/membership, Sheets identities/date validation/versioning, full-body parser boundaries, conservative matching, lifecycle status precedence, ambiguous conversations, manual overrides/exclusions, deletion pause, CSV formulas and unknown-date analytics.
 
@@ -35,7 +35,7 @@ Still not verified in a real browser, so no pass is claimed: computed contrast o
 
 ## Deployed checks
 
-Both migrations applied remotely. Final Workers and Pages deployed successfully; version/rollback inventory is in plan section 21. Custom domains have active SSL. Unique environment encryption keys; owner Access and independent JWT validation; exact-origin credentialed CORS; workers.dev and version preview URLs disabled. The first live Sheets call exposed that Workers rejects `redirect:"error"`; the provider wrapper now uses `manual` and rejects redirect statuses before parsing or following them. The regression test covers that fail-closed behavior.
+Migrations 0001/0002 applied remotely; migration 0003 passed locally and remains pending for the next remote deployment. Previous Workers and Pages deployments succeeded; version/rollback inventory is in plan section 21. Custom domains have active SSL. Unique environment encryption keys; owner Access and independent JWT validation; exact-origin credentialed CORS; workers.dev and version preview URLs disabled. The first live Sheets call exposed that Workers rejects `redirect:"error"`; the provider wrapper now uses `manual` and rejects redirect statuses before parsing or following them. The regression test covers that fail-closed behavior.
 
 Real test D1/Workflow processing of two synthetic messages creates one application and two events. Unchanged repeat processes zero and preserves counts; no lock remains. The production classic-Outlook fallback imported 76 bounded messages from the selected historical floor, processed all 76 in one completed Workflow, created two canonical applications and retained uncertain records for review. Review exposed overly broad body-keyword matches, so the prospective default filter was tightened; a private rerun matched 65 messages and its JSON was immediately removed. The original uncertain records were kept for explicit owner review. The production tracker read changed 15 rows; the immediate replay changed 0 and reported 15 unchanged.
 

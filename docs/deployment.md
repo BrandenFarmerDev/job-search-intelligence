@@ -1,6 +1,6 @@
 # Deployment and provider setup
 
-Source remains local on `bfarmer/scaffold-foundation`: no commits, pushes or PRs. Cloudflare validation deployments and GitHub administration were separately authorized. `ENABLE_DEPLOYMENTS=false` prevents GitHub deployments until source publication and release acceptance are authorized.
+Source is published on `bfarmer/scaffold-foundation` in PR #1. `ENABLE_DEPLOYMENTS=false` keeps GitHub deployments paused until release acceptance.
 
 ## Resource inventory
 
@@ -11,7 +11,7 @@ Cloudflare account: `712adbcc6c4efdf86433da200b135398`. All resources are dedica
 | Test | https://jobs-test.brandenfarmer.com | https://jobs-api-test.brandenfarmer.com | `98748289-ff68-43b3-8cbe-5bf30d0e04bf` | `job-intelligence-sync-preview` |
 | Production | https://jobs.brandenfarmer.com | https://jobs-api.brandenfarmer.com | `9edee823-6086-4f4c-b544-cbf35bb03f3d` | `job-intelligence-sync-production` |
 
-Worker names: `job-search-intelligence-api-preview` / `job-search-intelligence-api`. Both migrations have been applied remotely to both isolated databases. Encryption keys are unique 256-bit Worker secrets. Scheduled imports remain disabled (`SYNC_ENABLED=false`) despite the configured 14:00 UTC cron.
+Worker names: `job-search-intelligence-api-preview` / `job-search-intelligence-api`. Migrations 0001 and 0002 are applied remotely to both isolated databases. Migration 0003 passed locally and must be applied to each remote database before the next Worker deployment. Encryption keys are unique 256-bit Worker secrets. Scheduled imports remain disabled (`SYNC_ENABLED=false`) despite the configured 14:00 UTC cron.
 
 Direct Upload Pages project: `job-search-intelligence`, production branch `main`; no Git integration. The test domain has a **proxied** CNAME to `preview.job-search-intelligence.pages.dev`, production to `job-search-intelligence.pages.dev`. Do not accidentally point test to production. [Cloudflare branch-domain instructions](https://developers.cloudflare.com/pages/how-to/custom-branch-aliases/).
 

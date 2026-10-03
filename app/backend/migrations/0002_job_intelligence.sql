@@ -2,7 +2,7 @@ CREATE TABLE organizations (id TEXT PRIMARY KEY, name TEXT NOT NULL, normalized_
 CREATE TABLE applications (
  id TEXT PRIMARY KEY, organization_id TEXT REFERENCES organizations(id), company TEXT NOT NULL,
  role TEXT NOT NULL, requisition_id TEXT, application_url TEXT, applied_at TEXT NOT NULL,
- status TEXT NOT NULL DEFAULT 'submitted', source TEXT NOT NULL, reconciliation TEXT NOT NULL DEFAULT 'needs_review',
+ status TEXT NOT NULL DEFAULT 'application_submitted', source TEXT NOT NULL, reconciliation TEXT NOT NULL DEFAULT 'needs_review',
  excluded INTEGER NOT NULL DEFAULT 0 CHECK(excluded IN (0,1)), updated_at TEXT NOT NULL
 );
 CREATE INDEX applications_search ON applications(company,role,applied_at);

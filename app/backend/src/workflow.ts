@@ -11,7 +11,8 @@ export class JobSyncWorkflow extends WorkflowEntrypoint<Env, SyncParameters> {
     const acquired = await step.do("acquire lease", retry, async () => {
       const lease = await acquireLease(this.env.JOB_SEARCH_DB, id);
       if (!lease && (await this.env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='sync_paused'").first<{value:string}>())?.value === "true") return "paused";
-      await this.env.JOB_SEARCH_DB.prepare("INSERT OR IGNORE INTO sync_runs(id,trigger,status,started_at) VALUES(?,?,?,?)").bind(id, event.payload.trigger, lease ? "running" : "skipped_overlap", new Date().toISOString()).run();
+      const startedAt = new Date().toISOString();
+      await this.env.JOB_SEARCH_DB.prepare("INSERT OR IGNORE INTO sync_runs(id,trigger,status,started_at,finished_at) VALUES(?,?,?,?,?)").bind(id, event.payload.trigger, lease ? "running" : "skipped_overlap", startedAt, lease ? null : startedAt).run();
       return lease;
     });
     if (acquired === "paused") return {status:"skipped_paused"};

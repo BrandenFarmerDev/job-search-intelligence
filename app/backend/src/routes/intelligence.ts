@@ -135,6 +135,7 @@ async function route(request: Request, env: Env, owner: string): Promise<Respons
         db.prepare("INSERT INTO manual_overrides VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(), target, "merge", id, owner, now),
         db.prepare("INSERT INTO manual_overrides VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(), target, "status", JSON.stringify(body.status), owner, now),
         db.prepare("UPDATE applications SET status=?,reconciliation='matched',updated_at=? WHERE id=?").bind(body.status,now,target),
+        db.prepare("INSERT INTO application_events VALUES(?,?,?,?,?,?,1,?)").bind(crypto.randomUUID(), target, body.status, now, "manual", crypto.randomUUID(), JSON.stringify({method:"manual",actor:owner,mergedFrom:id,dateKnown:true})),
       ]);
       return Response.json({ merged: true });
     }

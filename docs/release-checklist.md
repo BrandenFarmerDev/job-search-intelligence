@@ -1,6 +1,6 @@
 # Release checklist
 
-Implementation is local and provider acceptance is incomplete. Section 21 of the architecture plan is the canonical todo list. Check each item only with evidence for the release being reviewed.
+Implementation is in PR #1 and provider acceptance is incomplete. Section 21 of the architecture plan is the canonical todo list. Check each item only with evidence for the release being reviewed.
 
 ## Automated and security gates
 
@@ -15,7 +15,8 @@ Implementation is local and provider acceptance is incomplete. Section 21 of the
 ## Private deployment and browser
 
 - [x] Dedicated test/production D1/Worker/Workflow/Access/Gateway resources and unique encryption keys.
-- [x] Both additive migrations applied remotely; workers.dev/version preview routes disabled.
+- [x] Migrations 0001/0002 applied remotely; workers.dev/version preview routes disabled.
+- [ ] Apply migration 0003 to both remote D1 databases before the next Worker deployment.
 - [x] SSL custom frontend domains configured; proxied test CNAME points to preview branch.
 - [x] Unauthenticated test API returns expected owner Access challenge; backend verifies signed JWT independently.
 - [x] Latest frontend/Worker versions deployed and authenticated owner browser smoke recorded; protected About health works in both environments.

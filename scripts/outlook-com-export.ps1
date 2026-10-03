@@ -34,7 +34,8 @@ function Get-MapiText([object]$Item, [string]$Property) {
   try {
     $accessor = Track-Com $Item.PropertyAccessor
     $value = $accessor.GetProperty($Property)
-    return if ($null -eq $value) { '' } else { [string]$value }
+    if ($null -eq $value) { return '' }
+    return [string]$value
   } catch { return '' }
 }
 function Get-StableIdentity([object]$Item) {
