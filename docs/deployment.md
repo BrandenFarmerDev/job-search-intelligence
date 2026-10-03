@@ -1,6 +1,6 @@
 # Deployment and provider setup
 
-Source is published on `bfarmer/scaffold-foundation` in PR #1. `ENABLE_DEPLOYMENTS=false` keeps GitHub deployments paused until release acceptance.
+Source is published on `bfarmer/scaffold-foundation` in PR #1. The owner authorized merge and production deployment on October 3; GitHub verification succeeded and `ENABLE_DEPLOYMENTS=true` is saved. Scheduled sync, AI and Graph remain disabled. Preview uses final reviewed code; production workflow/token verification is tracked in the PR release evidence.
 
 ## Resource inventory
 

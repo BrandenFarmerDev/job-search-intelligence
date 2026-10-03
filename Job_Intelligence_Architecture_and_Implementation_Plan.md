@@ -741,7 +741,7 @@ This architecture provides the required analytics and reconciliation capabilitie
 
 ---
 
-## 21. Execution tracker — October 2, 2026
+## 21. Execution tracker — October 3, 2026
 
 This is the canonical todo list. Code/configuration verification and live provider acceptance are separate. Publication from `bfarmer/scaffold-foundation`, GitHub/Cloudflare deployment authentication and a brief PR are authorized. No email sending or source-system write-back is enabled.
 
@@ -765,7 +765,7 @@ This is the canonical todo list. Code/configuration verification and live provid
 - [x] Implement independently verified owner JWT authorization, exact-origin mutations, bounded requests/provider responses, safe error codes and encrypted credentials.
 - [x] Configure GitHub preview/production environments, branch policies, variables and account-ID secrets.
 - [x] Active main ruleset matches portfolio: PR, updated branch, quality/CodeQL checks, no force push/deletion/bypass. Enable secret scanning and push protection; read-only Actions default.
-- [x] Provision the dedicated deploy-token secret in both environments; deployment remains disabled by the repository variable.
+- [x] Provision the dedicated deploy-token secret in both environments; owner authorized merge/deployment and ENABLE_DEPLOYMENTS=true was saved October 3.
 - [x] Hosted CI and CodeQL pass on PR #1 with zero open code-scanning or Dependabot alerts.
 
 ### Phase 2 ? Outlook
@@ -807,51 +807,53 @@ This is the canonical todo list. Code/configuration verification and live provid
 - [x] Corrections, merge/exclusion, safe CSV export, typed deletion, empty/error/disconnected states.
 - [x] Authenticated deployed test timeline and source filter; production empty state; About health checks on both environments.
 - [x] Desktop/mobile light/dark layout, no horizontal page overflow, keyboard skip link focusing main and unknown-route recovery.
-- [ ] Browser 200% zoom and exhaustive live date/review/correction/merge/export/deletion action checklist. Automated route/UI/security regressions pass; these live checks remain explicit release items.
+- [x] Final preview live checks October 3: native Chrome 200% zoom without overflow, light/dark, date filtering, owner correction, review resolution, merge with consistent offer metrics and CSV export.
+- [ ] Permanent preview deletion/pause acceptance: action-time user consent pending; DB/UI regression tests pass.
 
 ### Phase 7 ? reliability, privacy and release
 
 - [x] Durable scheduled ETL implementation, overlap/maintenance leases, retries/backoff, resumable pages, limits, counters/errors and failure warnings.
 - [x] Retention, disconnect/delete/export/reprocess with provenance and safe CSV. Deletion durably pauses imports.
-- [x] Clean npm ci; current full quality passes: 322 tests, all coverage floors, zero lint warnings, 0% duplication, fresh bindings, types, builds, local migrations and dependency audit.
+- [x] Clean npm ci; current full quality passes: 323 tests, all coverage floors, zero lint warnings, 0% duplication, fresh bindings, types, builds, local migrations and dependency audit.
 - [x] Apply migration 0003 to preview and production D1 before deploying code that relies on the normalized application status. October 3 checks confirmed schema version 3, trigger presence, zero legacy statuses and unchanged application counts in both environments.
 - [x] Local actionlint and isolated Worker dry runs; actual final Worker and Pages deployments succeed.
 - [x] Real synthetic Workflow/D1 replay: two messages produce one application/two events; unchanged replay processes zero records. Final owner-browser run completes with correct interview status and email-only reconciliation.
 - [x] All custom API/site and current default/preview/hash Pages aliases reject unauthenticated requests with their configured Access challenge. Owner browser works; no application-origin console warnings/errors on inspected dashboard flows.
 - [x] Separate cost-effective GPT-6 Luna QA review; concrete findings fixed and rechecked, including the local-to-Graph identity/authority transition and default COM privacy scope.
 - [x] Record current and previous deployments for compatible rollback.
-- [ ] Complete live provider acceptance and remaining browser checks before enabling daily imports or deployments.
-- [ ] Owner authorizes source publication before any commit/push/PR. `ENABLE_DEPLOYMENTS=false`, `SYNC_ENABLED=false`, `AI_ENABLED=false`, daily AI cap 0.
+- [ ] Verify the authorized production GitHub workflow and authenticated production smoke. Deployment evidence is recorded in PR #1; scheduled imports remain disabled.
+- [ ] Complete consent-pending preview deletion and owner review before routine operation; future Graph/AI activation has separate acceptance.
+- [x] Owner authorized source publication, merge and production deployment. GitHub verification succeeded; `ENABLE_DEPLOYMENTS=true`. `SYNC_ENABLED=false`, `AI_ENABLED=false`, daily AI cap 0 and `MICROSOFT_GRAPH_ENABLED=false` remain binding.
 
 ### First-release acceptance evidence
 
 | Criterion from section 18 | Current evidence / remaining work |
 | --- | --- |
-| 1. Secure Outlook connection | Authenticated owner-only local import works; OAuth/encryption/owner tests pass; live Graph app registration/consent remains blocked by directory. |
-| 2. Historical import | Classic Outlook fallback imported and processed 76 bounded records from the configured date. Live Graph backfill remains pending. |
-| 3. Stored delta links | Atomic checkpoint/replay tests pass; real Graph delta acceptance pending. |
-| 4. Folder movement avoids duplicates | Immutable-ID/membership/rebaseline tests pass; controlled live move pending. |
+| 1. Secure Outlook connection | Authenticated owner-only local import works; OAuth/encryption/owner tests pass; Graph app registration/consent is deferred beyond version one. |
+| 2. Historical import | Classic Outlook fallback imported and processed 76 bounded records from the configured date. Graph backfill is a future feature acceptance item. |
+| 3. Stored delta links | Atomic checkpoint/replay tests pass; live Graph delta acceptance belongs to the future Graph release. |
+| 4. Folder movement avoids duplicates | Immutable-ID/membership/rebaseline tests pass; controlled live Graph movement is a future release item. |
 | 5. Changed-only Sheets reads | Production initial read changed 15 rows; immediate replay changed 0 and reported all 15 unchanged. |
 | 6. Event taxonomy | Rules and uncertainty fixtures pass; production sample review pending. |
 | 7. Evidence fields retained | Extraction/provenance tests and deployed synthetic timeline pass; live samples pending. |
 | 8. Canonical association | DB-backed matching tests and real synthetic Workflow pass. |
 | 9. Reconciliation states | Tests cover all states; deployed email-only and production empty states checked. |
 | 10. Uncertain records reviewed | Ambiguity/conversation/invalid-date tests require review. |
-| 11. Durable manual decisions | Override/exclusion/merge/lease regression tests pass; complete live action exercise pending. |
+| 11. Durable manual decisions | Override/exclusion/merge/lease regressions pass; live correction, review resolution and merge passed October 3. Permanent deletion remains consent-pending. |
 | 12. Analytics | Automated metrics/UI tests and synthetic browser KPI/chart checks pass. |
 | 13. Workflow retry idempotency | Real D1/Workflow synthetic repeat retains one application/two events and processes zero unchanged inputs. |
 | 14. Private boundary | Custom and Pages aliases challenge anonymous requests; signed owner JWT checks pass; separate resources; no portfolio private route added. |
-| 15. No sending permission | Mail.Read/User.Read/offline_access only; no Mail.Send or email-sending implementation. Live consent pending. |
+| 15. No sending permission | Mail.Read/User.Read/offline_access only; no Mail.Send or email-sending implementation. Future Graph consent remains deferred; version one uses local import. |
 
-**First release is not complete.** Microsoft Graph credentials/consent, remaining Graph acceptance, remaining browser checks and hosted source gates remain open. Do not substitute synthetic evidence for live provider acceptance.
+**Version-one release is authorized and in progress.** Hosted quality/CodeQL and independent final QA pass. Local Outlook import and Sheets read/replay have live evidence. Graph and optional AI remain disabled future features. Production workflow/token verification and authenticated smoke remain pending; live preview deletion needs separate action-time consent. Owner review of uncertain production records remains ongoing. Do not substitute synthetic evidence for live provider acceptance.
 
 ### Resource and deployment inventory
 
 - Cloudflare account: `712adbcc6c4efdf86433da200b135398`.
 - Test D1: `98748289-ff68-43b3-8cbe-5bf30d0e04bf`; production D1: `9edee823-6086-4f4c-b544-cbf35bb03f3d`. Migrations 0001–0003 applied remotely and verified October 3; neither database has a pending migration. Test holds only the synthetic QA fixture; production contains the first owner-approved local Outlook import.
 - Test: https://jobs-test.brandenfarmer.com and https://jobs-api-test.brandenfarmer.com. Production: https://jobs.brandenfarmer.com and https://jobs-api.brandenfarmer.com. Both frontend certificates active. Test proxied CNAME points to `preview.job-search-intelligence.pages.dev`.
-- Pages project `job-search-intelligence`, Direct Upload, production branch main, no Git integration. Current test deployment `3025be04`; current production `445f4028`. Prior compatible test `244c62f3`, production `21db27b0`.
-- Test Worker `job-search-intelligence-api-preview`, version `84e345d6-3fd0-4186-8864-925df379e6a0`; production `job-search-intelligence-api`, version `4ef1a952-c717-4c40-8bb7-4b346135cc15`. Prior compatible test `65d24099-c86f-4b51-9aca-19398816f265`, production `cb41c838-b2a6-4c49-94cb-26e6e915cbf7`.
+- Pages project `job-search-intelligence`, Direct Upload, production branch main, no Git integration. Current test deployment `34363a79`; pre-release production `445f4028`. Prior compatible test `3025be04`, production `21db27b0`. Production release version is recorded in PR #1 after workflow verification.
+- Test Worker `job-search-intelligence-api-preview`, version `21a3a561-f2d6-4eb4-839b-4fd312adb6ae`; pre-release production `job-search-intelligence-api`, version `4ef1a952-c717-4c40-8bb7-4b346135cc15`. Prior compatible test `84e345d6-3fd0-4186-8864-925df379e6a0`, production `cb41c838-b2a6-4c49-94cb-26e6e915cbf7`.
 - Workflows `job-intelligence-sync-preview` / `job-intelligence-sync-production`; unique encryption keys provisioned only as Worker secrets.
 - Gateways `job-intelligence-preview` / `job-intelligence-production`: authenticated, logs/cache off, zero-data retention; no model calls.
 - Owner Access test app `edb7d94d-dac3-4b2f-ae5d-6e2f06c78b90`, production `243a269b-a9da-4adb-926d-6a783bd58a5e`; owner-email policy `2f08f97a-f619-47d4-abd1-dbe6ca15a943`. Distinct audiences independently checked by backend. workers.dev/version previews disabled.
