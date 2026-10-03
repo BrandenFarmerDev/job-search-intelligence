@@ -11,6 +11,28 @@ The implementation follows `Job_Intelligence_Architecture_and_Implementation_Pla
 
 Pages and API hosts require owner-email-only Cloudflare Access. The Worker independently verifies RS256 signature, issuer, environment audience, expiry and exact owner email. Every private route is protected; mutations require the exact frontend Origin. Preview/production have separate D1, Worker, Workflow, Access audience, AI Gateway and encryption key. workers.dev and version preview URLs are disabled.
 
+## Frontend
+
+Routes (react-router, all under one shell with a skip link, sidebar navigation, mobile Menu toggle and a Theme control):
+
+| Route | Page |
+| --- | --- |
+| `/` | Overview: key figures, stage reach, weekly volume, status/reconciliation distributions, insights by source/company/role, follow-ups |
+| `/applications` | Filterable, sortable, paginated list; detail drawer; add application; CSV export |
+| `/review` | Uncertain source records with decision or exclusion |
+| `/sources` | Local Outlook import, tracker connection, sync history, reprocess, typed deletion |
+| `/about` | Capabilities and API status |
+
+The shell owns one dashboard provider (`lib/dashboard-context.tsx`): `/dashboard` and `/review` load together, every owner action goes through its `perform`/`runAction`, and a success refreshes all views. Views with their own requests (`lib/use-api.ts`) reload on the provider's revision and abort on change or unmount. A route change moves focus to the page `h1`; the first load does not.
+
+Applications state lives in the URL: `q`, `status`, `source`, `reconciliation`, `from`, `to`, `company`, `role`, `sort`, `page` (zero-based), `pageSize` (25 or 50) and `app` (open drawer). Changing a filter, sort or page size drops `page`; opening or closing the drawer only adds or removes `app`. The drawer loads `/applications/:id` itself, so a deep link works for any record, and closing it restores focus to the opener (or the `h1` for a deep link). Excluding an application uses an inline confirmation inside the drawer rather than a nested dialog. `ApplicationPicker` (merge target, review decisions) searches `/applications` independently of the list filters.
+
+Components: `components/ui` holds the design primitives (Button, Field, SearchInput, StatusBadge, Panel, Kpi, Alert, EmptyState, Skeleton, Tabs, Drawer on native `<dialog>`, DataTable, Pagination, FilterChip). `components/charts` holds hand-written SVG BarChart, ColumnChart and StageReach; each has a "View as table" alternative. There are no chart dependencies and no inline styles, because Pages sends `style-src 'self'`.
+
+Styling: semantic `--qe-*` tokens for light and dark in `styles/tokens.css`, ordered by CSS cascade layers in `styles/global.css`. The preference (System, Light, Dark) is stored in `localStorage` key `qe-theme`. `public/theme-init.js` is a same-origin script (inline scripts are blocked by the CSP) that sets `data-theme` on `<html>` before first paint; `lib/theme.ts` keeps it in sync and follows the system setting while System is selected.
+
+API shapes added for this UI (`packages/shared`): `Dashboard` gained `outcomes` (applied, responses, screenings, interviews, offers, rejections and median response days per source/company/role), `weekly` (UTC Monday-start weekly counts), `medianFirstResponseDays` (nullable) and `lastSuccessfulSyncAt`. `GET /applications` accepts `pageSize` (25 or 50; 50 when absent), `sort` (`applied_desc`, `applied_asc`, `company`, `status`, `updated`; unknown values use `applied_desc`) and exact `company` and `role`, and returns `ApplicationListResponse`: `applications`, `page`, `pageSize`, `total` and `hasMore`.
+
 ## Ingestion and reliability
 
 Microsoft OAuth uses PKCE, one-use owner-bound expiring state, a secure HTTP-only callback cookie, consumer authority and offline_access/User.Read/Mail.Read. Refresh tokens use AES-GCM with account-bound additional data and rotate. No Mail.Send permission or sending endpoint exists. Disconnect removes credentials/checkpoints and retains source evidence.

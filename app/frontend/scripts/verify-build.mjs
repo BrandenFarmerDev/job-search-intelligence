@@ -12,3 +12,6 @@ for (const required of [
 ]) {
   if (!headers.includes(required)) throw new Error(`Built Pages headers are missing ${required}`);
 }
+// The SPA fallback would serve index.html for a missing script, which the CSP-compliant theme bootstrap cannot recover from.
+const themeInit = readFileSync(new URL("../dist/theme-init.js", import.meta.url), "utf8");
+if (!themeInit.trim() || themeInit.trimStart().startsWith("<")) throw new Error("dist/theme-init.js is missing or is SPA HTML");

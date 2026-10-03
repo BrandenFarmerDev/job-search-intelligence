@@ -10,9 +10,18 @@ export default tseslint.config(
   },
   {
     files: ["**/*.{js,mjs}"],
+    ignores: ["app/frontend/public/**"],
     ...js.configs.recommended,
     languageOptions: {
       globals: globals.node,
+    },
+  },
+  {
+    files: ["app/frontend/public/**/*.js"],
+    ...js.configs.recommended,
+    languageOptions: {
+      sourceType: "script",
+      globals: globals.browser,
     },
   },
   ...tseslint.configs.recommended.map((config) => ({

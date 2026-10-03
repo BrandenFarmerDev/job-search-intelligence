@@ -26,4 +26,6 @@ export async function intelligenceApi<T>(path: string, method = "GET", body?: ob
   }
   return await response.json() as T;
 }
+export const errorMessage = (reason: unknown, fallback: string): string => reason instanceof Error ? reason.message : fallback;
+export const sessionUrl = (): string => `${import.meta.env.VITE_API_BASE_URL || ""}/api/job-intelligence/session`;
 export function exportUrl(): string { return `${import.meta.env.VITE_API_BASE_URL || ""}/api/job-intelligence/export`; }

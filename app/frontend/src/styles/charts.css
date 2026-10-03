@@ -1,0 +1,24 @@
+@layer qe-components {
+  .qe-chart { display: flex; flex-direction: column; gap: var(--qe-space-3); min-inline-size: 0; }
+  .qe-chart-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--qe-space-2) var(--qe-space-4); }
+  .qe-chart-title { font-size: var(--qe-font-size-md); font-weight: var(--qe-font-weight-semibold); }
+  .qe-chart-description { color: var(--qe-color-text-secondary); font-size: var(--qe-font-size-sm); }
+  .qe-chart-body { min-inline-size: 0; }
+  .qe-chart-svg { display: block; inline-size: 100%; overflow: visible; }
+  .qe-chart-label { fill: var(--qe-color-text-secondary); font-size: var(--qe-font-size-sm); }
+  .qe-chart-value { fill: var(--qe-color-text); font-size: var(--qe-font-size-sm); font-weight: var(--qe-font-weight-medium); font-variant-numeric: tabular-nums; }
+  .qe-chart-axis { fill: var(--qe-color-text-muted); font-size: var(--qe-font-size-xs); }
+  .qe-chart-grid { stroke: var(--qe-color-border-subtle); stroke-width: var(--qe-border-width); }
+  .qe-chart-baseline { stroke: var(--qe-color-border-strong); stroke-width: var(--qe-border-width); }
+  .qe-chart-track { fill: var(--qe-color-surface-sunken); }
+  .qe-bar:hover .qe-bar-fill { opacity: 0.85; }
+  .qe-bar:focus-visible .qe-bar-fill { stroke: var(--qe-color-text); stroke-width: var(--qe-border-width-strong); }
+  .qe-series-1 { fill: var(--qe-color-series-1); }
+  .qe-series-2 { fill: var(--qe-color-series-2); }
+  .qe-series-3 { fill: var(--qe-color-series-3); }
+  .qe-series-4 { fill: var(--qe-color-series-4); }
+  .qe-series-5 { fill: var(--qe-color-series-5); }
+  .qe-series-6 { fill: var(--qe-color-series-6); }
+  .qe-series-7 { fill: var(--qe-color-series-7); }
+  .qe-series-8 { fill: var(--qe-color-series-8); }
+}

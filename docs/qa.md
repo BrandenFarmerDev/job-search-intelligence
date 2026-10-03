@@ -25,6 +25,12 @@ The final fallback review passed 25 backend and 10 frontend focused tests with n
 
 Before publication, separate cost-effective code and security reviewers examined the complete tree. They identified the still-exposed version-one Graph controls, missing Pages security headers, silently accepted truncated Outlook exports, a stale local-import marker after data deletion, and outdated release documentation. The fixes gate Graph routes/Workflow/UI, add static CSP and browser-hardening headers, reject truncated exports in both browser and Worker, clear the marker during deletion, and align the release plan. Both reviewers rechecked the corrected tree before commit.
 
+## Quiet Enterprise UI
+
+Automated checks (jsdom, synthetic data only) cover: every route and the not-found page; sidebar `aria-current`; mobile Menu toggle state and Escape; theme control writing `data-theme` and the stored preference; focus moving to the `h1` after a route change but not on first load; Overview figures including an unavailable median, chart/table toggles, insight links to exact filters and follow-up links; Applications URL-to-API filters, chips, page reset, sorting, pagination, debounced search, deep-linked drawer, timeline labels, correction, merge, inline exclusion, add and empty/failed lists; Review decisions, exclusion and the 100-record note; Sources chunked import, truncated/invalid export rejection, tracker, sync, reprocess, three-failure alert and typed deletion; the independent application picker; provider/hook unmount safety; and axe checks (color-contrast disabled, because jsdom cannot compute it).
+
+Not yet verified in a real browser, so no pass is claimed: light, dark and system themes (including contrast); widths 1440, 1024, 768 and 390; 200% zoom; full keyboard walkthrough including drawer focus trap and return; reduced motion; and a console check for CSP violations on the built Pages output. The Chrome checks below predate this redesign.
+
 ## Deployed checks
 
 Both migrations applied remotely. Final Workers and Pages deployed successfully; version/rollback inventory is in plan section 21. Custom domains have active SSL. Unique environment encryption keys; owner Access and independent JWT validation; exact-origin credentialed CORS; workers.dev and version preview URLs disabled. The first live Sheets call exposed that Workers rejects `redirect:"error"`; the provider wrapper now uses `manual` and rejects redirect statuses before parsing or following them. The regression test covers that fail-closed behavior.

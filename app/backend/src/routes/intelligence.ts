@@ -1,4 +1,4 @@
-import type { ApplicationRecord } from "@job-search/shared";
+import type { ApplicationListResponse, ApplicationRecord } from "@job-search/shared";
 import { isEventType } from "@job-search/shared";
 import { dashboard, csv } from "../services/dashboard";
 import { beginMicrosoft, completeMicrosoft } from "../services/microsoft";
@@ -7,6 +7,8 @@ import { acquireLease } from "../services/sync";
 import { dateValue } from "../services/sheets";
 import { ingestLocalOutlookBatch } from "../services/local-outlook";
 
+// Request values only select a key here; the SQL fragments are fixed. The legacy `date` key maps to newest-applied.
+const applicationOrder = new Map([["applied_desc", "applied_at DESC"], ["date", "applied_at DESC"], ["applied_asc", "applied_at ASC"], ["company", "company COLLATE NOCASE ASC"], ["status", "status ASC"], ["updated", "updated_at DESC"]]);
 export async function intelligenceRoute(request: Request, env: Env, owner: string): Promise<Response> {
   const path = new URL(request.url).pathname;
   const mutation = !["GET","HEAD"].includes(request.method) || path.endsWith("/connections/microsoft/callback");
@@ -38,10 +40,18 @@ async function route(request: Request, env: Env, owner: string): Promise<Respons
     const query = text(url.searchParams.get("q"), 200); const status = text(url.searchParams.get("status"), 100);
     const source=text(url.searchParams.get("source"),50);const reconciliation=text(url.searchParams.get("reconciliation"),50);
     const from=dateValue(text(url.searchParams.get("from")));const to=dateValue(text(url.searchParams.get("to")));
-    const sort = url.searchParams.get("sort") === "company" ? "company" : "applied_at DESC";
+    const company=text(url.searchParams.get("company"),200);const role=text(url.searchParams.get("role"),200);
+    const pageSize = url.searchParams.get("pageSize") === "25" ? 25 : 50;
+    const sort = applicationOrder.get(url.searchParams.get("sort") ?? "") ?? applicationOrder.get("applied_desc");
     const pattern = `%${query.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
-    const rows = await db.prepare(`SELECT * FROM applications WHERE excluded=0 AND (company LIKE ? ESCAPE '\\' OR role LIKE ? ESCAPE '\\') AND (?='' OR status=?) AND (?='' OR source=?) AND (?='' OR reconciliation=?) AND (?='' OR applied_at>=?) AND (?='' OR applied_at<=?) ORDER BY ${sort},id LIMIT 50 OFFSET ?`).bind(pattern, pattern, status, status,source,source,reconciliation,reconciliation,from,from,to,`${to}T23:59:59.999Z`,page * 50).all<ApplicationRecord>();
-    return Response.json({ applications: rows.results, page, hasMore: rows.results.length === 50 });
+    const where = "excluded=0 AND (company LIKE ? ESCAPE '\\' OR role LIKE ? ESCAPE '\\') AND (?='' OR status=?) AND (?='' OR source=?) AND (?='' OR reconciliation=?) AND (?='' OR applied_at>=?) AND (?='' OR applied_at<=?) AND (?='' OR company=?) AND (?='' OR role=?)";
+    const bindings = [pattern, pattern, status, status, source, source, reconciliation, reconciliation, from, from, to, `${to}T23:59:59.999Z`, company, company, role, role];
+    const [counted, listed] = await db.batch([
+      db.prepare(`SELECT COUNT(*) AS total FROM applications WHERE ${where}`).bind(...bindings),
+      db.prepare(`SELECT * FROM applications WHERE ${where} ORDER BY ${sort},id LIMIT ? OFFSET ?`).bind(...bindings, pageSize, page * pageSize),
+    ]);
+    const total = Number((counted.results[0] as { total: number }).total);
+    return Response.json({ applications: listed.results as ApplicationRecord[], page, pageSize, total, hasMore: (page + 1) * pageSize < total } satisfies ApplicationListResponse);
   }
   if (path === "/export" && request.method === "GET") {
     const apps = (await db.prepare("SELECT * FROM applications WHERE excluded=0 ORDER BY applied_at,id").all<ApplicationRecord>()).results;
