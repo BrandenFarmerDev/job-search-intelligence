@@ -15,8 +15,7 @@ Implementation is in PR #1 and provider acceptance is incomplete. Section 21 of 
 ## Private deployment and browser
 
 - [x] Dedicated test/production D1/Worker/Workflow/Access/Gateway resources and unique encryption keys.
-- [x] Migrations 0001/0002 applied remotely; workers.dev/version preview routes disabled.
-- [ ] Apply migration 0003 to both remote D1 databases before the next Worker deployment.
+- [x] Migrations 0001–0003 applied remotely to both D1 databases; workers.dev/version preview routes disabled. Schema version 3, trigger presence, zero legacy statuses and unchanged application counts verified October 3.
 - [x] SSL custom frontend domains configured; proxied test CNAME points to preview branch.
 - [x] Unauthenticated test API returns expected owner Access challenge; backend verifies signed JWT independently.
 - [x] Latest frontend/Worker versions deployed and authenticated owner browser smoke recorded; protected About health works in both environments.

@@ -814,7 +814,7 @@ This is the canonical todo list. Code/configuration verification and live provid
 - [x] Durable scheduled ETL implementation, overlap/maintenance leases, retries/backoff, resumable pages, limits, counters/errors and failure warnings.
 - [x] Retention, disconnect/delete/export/reprocess with provenance and safe CSV. Deletion durably pauses imports.
 - [x] Clean npm ci; current full quality passes: 322 tests, all coverage floors, zero lint warnings, 0% duplication, fresh bindings, types, builds, local migrations and dependency audit.
-- [ ] Apply migration 0003 to preview and production D1 before deploying code that relies on the normalized application status.
+- [x] Apply migration 0003 to preview and production D1 before deploying code that relies on the normalized application status. October 3 checks confirmed schema version 3, trigger presence, zero legacy statuses and unchanged application counts in both environments.
 - [x] Local actionlint and isolated Worker dry runs; actual final Worker and Pages deployments succeed.
 - [x] Real synthetic Workflow/D1 replay: two messages produce one application/two events; unchanged replay processes zero records. Final owner-browser run completes with correct interview status and email-only reconciliation.
 - [x] All custom API/site and current default/preview/hash Pages aliases reject unauthenticated requests with their configured Access challenge. Owner browser works; no application-origin console warnings/errors on inspected dashboard flows.
@@ -848,7 +848,7 @@ This is the canonical todo list. Code/configuration verification and live provid
 ### Resource and deployment inventory
 
 - Cloudflare account: `712adbcc6c4efdf86433da200b135398`.
-- Test D1: `98748289-ff68-43b3-8cbe-5bf30d0e04bf`; production D1: `9edee823-6086-4f4c-b544-cbf35bb03f3d`. Migrations 0001/0002 applied remotely; migration 0003 passed locally and awaits the next deployment. Test holds only the synthetic QA fixture; production contains the first owner-approved local Outlook import.
+- Test D1: `98748289-ff68-43b3-8cbe-5bf30d0e04bf`; production D1: `9edee823-6086-4f4c-b544-cbf35bb03f3d`. Migrations 0001–0003 applied remotely and verified October 3; neither database has a pending migration. Test holds only the synthetic QA fixture; production contains the first owner-approved local Outlook import.
 - Test: https://jobs-test.brandenfarmer.com and https://jobs-api-test.brandenfarmer.com. Production: https://jobs.brandenfarmer.com and https://jobs-api.brandenfarmer.com. Both frontend certificates active. Test proxied CNAME points to `preview.job-search-intelligence.pages.dev`.
 - Pages project `job-search-intelligence`, Direct Upload, production branch main, no Git integration. Current test deployment `3025be04`; current production `445f4028`. Prior compatible test `244c62f3`, production `21db27b0`.
 - Test Worker `job-search-intelligence-api-preview`, version `84e345d6-3fd0-4186-8864-925df379e6a0`; production `job-search-intelligence-api`, version `4ef1a952-c717-4c40-8bb7-4b346135cc15`. Prior compatible test `65d24099-c86f-4b51-9aca-19398816f265`, production `cb41c838-b2a6-4c49-94cb-26e6e915cbf7`.

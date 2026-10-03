@@ -1,4 +1,4 @@
-# Agent handoff — October 2, 2026
+# Agent handoff — October 3, 2026
 
 Resume in `C:\GitHub\Apps\job-search-intelligence`, branch `bfarmer/scaffold-foundation`. Environment cwd may still point to portfolio; always set workdir.
 
@@ -10,7 +10,9 @@ Section 21 of `Job_Intelligence_Architecture_and_Implementation_Plan.md` is the 
 
 ## Completed and validated
 
-Private dashboard, owner JWT/origin enforcement, classic-Outlook COM import, Sheets reader, rules/optional capped AI, reconciliation/manual audit, durable Workflow, analytics/follow-ups and privacy controls are implemented and deployed. The future delegated read-only OAuth/Graph path remains implemented and tested but is gated off in the API, workflow and UI for version one. Both remote migrations applied. Isolated resources and owner Access/custom SSL domains configured.
+Private dashboard, owner JWT/origin enforcement, classic-Outlook COM import, Sheets reader, rules/optional capped AI, reconciliation/manual audit, durable Workflow, analytics/follow-ups and privacy controls are implemented and deployed. The future delegated read-only OAuth/Graph path remains implemented and tested but is gated off in the API, workflow and UI for version one. Remote migrations 0001–0003 are applied to both D1 databases. Isolated resources and owner Access/custom SSL domains configured.
+
+Migration `0003_normalize_application_status.sql` was applied to preview and production D1 on October 3. Both report schema version 3, have the normalization trigger, and have no legacy `submitted` statuses; application counts remained 1 and 16 respectively. Worker/Pages deployment and release acceptance remain separate work.
 
 Final full quality passes: 322 tests (96 backend/196 frontend/12 shared/18 guard), all four coverage metrics above 85%, 0% duplication, zero lint warnings/dependency audit findings. The current PR review findings have fixes for Outlook export syntax, status defaults, merge event history, configured AI model use, skipped-run finish times, and stale documentation. An obsolete untracked test targeting the removed dashboard page was preserved under ignored `tmp/`. First production fallback import processed all 76 bounded messages and produced two canonical applications. The broad first pass was tightened to 65 prospective matches; existing uncertain records remain for owner review. Google initial sync changed 15 tracker rows and the immediate replay reported all 15 unchanged. Private exports and the downloaded Google credential were removed.
 
@@ -23,7 +25,6 @@ PR #1 is open from `bfarmer/scaffold-foundation`. Hosted quality and CodeQL pass
 1. Microsoft Entra/Graph is deferred beyond version one. Do not make directory access or Graph consent a version-one release dependency. The local Outlook path is operational; future Graph code remains limited to read-only User.Read/Mail.Read/offline_access and is gated by `MICROSOFT_GRAPH_ENABLED=false`.
 2. Google is complete. The production-only secret belongs to the unprivileged reader with Viewer access only to the identified tracker; no downloaded credential remains. Initial read changed 15 rows and immediate replay reported 15 unchanged. Preview has no production tracker access.
 3. Production has 65 local-email reconciliation records, most requiring owner review; two canonical applications were created before the tracker import. Browser 200% zoom and exhaustive date/review/correction/merge/export/deletion actions remain open.
-4. Migration `0003_normalize_application_status.sql` passed locally but still needs application to preview and production D1 during a separately authorized deployment.
 
 Keep SYNC_ENABLED=false, AI_ENABLED=false, AI_DAILY_CALL_LIMIT=0 and ENABLE_DEPLOYMENTS=false until their relevant acceptance/authorization conditions are met.
 
