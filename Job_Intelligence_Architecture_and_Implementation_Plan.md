@@ -816,12 +816,12 @@ This is the canonical todo list. Code/configuration verification and live provid
 - [x] Retention, disconnect/delete/export/reprocess with provenance and safe CSV. Deletion durably pauses imports.
 - [x] Clean npm ci; current full quality passes: 323 tests, all coverage floors, zero lint warnings, 0% duplication, fresh bindings, types, builds, local migrations and dependency audit.
 - [x] Apply migration 0003 to preview and production D1 before deploying code that relies on the normalized application status. October 3 checks confirmed schema version 3, trigger presence, zero legacy statuses and unchanged application counts in both environments.
-- [x] Local actionlint and isolated Worker dry runs pass; final reviewed preview Worker and Pages deployment succeeded. Production release workflow remains pending.
+- [x] Local actionlint and isolated Worker dry runs pass; final reviewed preview Worker and Pages deployment succeeded. Production GitHub workflow and authenticated smoke subsequently passed.
 - [x] Real synthetic Workflow/D1 replay: two messages produce one application/two events; unchanged replay processes zero records. Final owner-browser run completes with correct interview status and email-only reconciliation.
 - [x] All custom API/site and current default/preview/hash Pages aliases reject unauthenticated requests with their configured Access challenge. Owner browser works; no application-origin console warnings/errors on inspected dashboard flows.
 - [x] Separate cost-effective GPT-6 Luna QA review; concrete findings fixed and rechecked, including the local-to-Graph identity/authority transition and default COM privacy scope.
 - [x] Record current and previous deployments for compatible rollback.
-- [ ] Verify the authorized production GitHub workflow and authenticated production smoke. Deployment evidence is recorded in PR #1; scheduled imports remain disabled.
+- [x] [Production GitHub workflow](https://github.com/BrandenFarmerDev/job-search-intelligence/actions/runs/37138746361) and authenticated About/Overview passed; D1 count remains 16. Scheduled imports remain disabled.
 - [ ] Complete consent-pending preview deletion and owner review before routine operation; future Graph/AI activation has separate acceptance.
 - [x] Owner authorized source publication, merge and production deployment. GitHub verification succeeded; `ENABLE_DEPLOYMENTS=true`. `SYNC_ENABLED=false`, `AI_ENABLED=false`, daily AI cap 0 and `MICROSOFT_GRAPH_ENABLED=false` remain binding.
 
@@ -845,15 +845,15 @@ This is the canonical todo list. Code/configuration verification and live provid
 | 14. Private boundary | Custom and Pages aliases challenge anonymous requests; signed owner JWT checks pass; separate resources; no portfolio private route added. |
 | 15. No sending permission | Mail.Read/User.Read/offline_access only; no Mail.Send or email-sending implementation. Future Graph consent remains deferred; version one uses local import. |
 
-**Version-one release is authorized and in progress.** Hosted quality/CodeQL and independent final QA pass. Local Outlook import and Sheets read/replay have live evidence. Graph and optional AI remain disabled future features. Production workflow/token verification and authenticated smoke remain pending; live preview deletion needs separate action-time consent. Owner review of uncertain production records remains ongoing. Do not substitute synthetic evidence for live provider acceptance.
+**Version-one code release is deployed and verified.** Hosted quality/CodeQL and independent final QA pass. Local Outlook import and Sheets read/replay have live evidence. Graph and optional AI remain disabled future features. Production workflow/token execution and authenticated smoke passed; live preview deletion needs separate action-time consent. Owner review of uncertain production records remains ongoing. Do not substitute synthetic evidence for live provider acceptance.
 
 ### Resource and deployment inventory
 
 - Cloudflare account: `712adbcc6c4efdf86433da200b135398`.
 - Test D1: `98748289-ff68-43b3-8cbe-5bf30d0e04bf`; production D1: `9edee823-6086-4f4c-b544-cbf35bb03f3d`. Migrations 0001–0003 applied remotely and verified October 3; neither database has a pending migration. Test holds only the synthetic QA fixture; production contains the first owner-approved local Outlook import.
 - Test: https://jobs-test.brandenfarmer.com and https://jobs-api-test.brandenfarmer.com. Production: https://jobs.brandenfarmer.com and https://jobs-api.brandenfarmer.com. Both frontend certificates active. Test proxied CNAME points to `preview.job-search-intelligence.pages.dev`.
-- Pages project `job-search-intelligence`, Direct Upload, production branch main, no Git integration. Current test deployment `34363a79`; pre-release production `445f4028`. Prior compatible test `3025be04`, production `21db27b0`. Production release version is recorded in PR #1 after workflow verification.
-- Test Worker `job-search-intelligence-api-preview`, version `21a3a561-f2d6-4eb4-839b-4fd312adb6ae`; pre-release production `job-search-intelligence-api`, version `4ef1a952-c717-4c40-8bb7-4b346135cc15`. Prior compatible test `84e345d6-3fd0-4186-8864-925df379e6a0`, production `cb41c838-b2a6-4c49-94cb-26e6e915cbf7`.
+- Pages project `job-search-intelligence`, Direct Upload, production branch main, no Git integration. Current test deployment `1ceadd05`; production `e04e088b`. Compatible pre-release rollback test `34363a79`, production `445f4028`.
+- Test Worker `job-search-intelligence-api-preview`, version `d0af18d5-1947-42a7-9db5-816dc10cdc35`; production `job-search-intelligence-api`, version `f143dd81-7865-45a2-81ff-9f44cb79d46a`. Compatible pre-release rollback test `21a3a561-f2d6-4eb4-839b-4fd312adb6ae`, production `4ef1a952-c717-4c40-8bb7-4b346135cc15`.
 - Workflows `job-intelligence-sync-preview` / `job-intelligence-sync-production`; unique encryption keys provisioned only as Worker secrets.
 - Gateways `job-intelligence-preview` / `job-intelligence-production`: authenticated, logs/cache off, zero-data retention; no model calls.
 - Owner Access test app `edb7d94d-dac3-4b2f-ae5d-6e2f06c78b90`, production `243a269b-a9da-4adb-926d-6a783bd58a5e`; owner-email policy `2f08f97a-f619-47d4-abd1-dbe6ca15a943`. Distinct audiences independently checked by backend. workers.dev/version previews disabled.
@@ -867,6 +867,16 @@ This is the canonical todo list. Code/configuration verification and live provid
 - [x] First production workflow failed closed before Cloudflare mutations because environment secrets were empty in its reusable job.
 - [x] Replace reusable deployment with a regular job bound directly to its protected environment; preserve gates, permissions and isolation. Actionlint and full quality (323 tests) pass; independent code QA passed.
 - [x] Independent security review identified preview dispatch exposure to an account-scoped token; configure mandatory owner environment approval and disable administrator bypass.
-- [ ] Validate the deployment correction with a real GitHub preview deployment, then protected PR merge and production smoke.
+- [x] Real GitHub preview deployment, protected PR #3 merge, production deployment and authenticated smoke passed.
 
 The live preview deletion test remains consent-pending; integrations remain disabled.
+
+### Verified release — October 3, 2026
+
+PR #1 and the reviewed deployment fix in PR #3 are merged. [Production workflow](https://github.com/BrandenFarmerDev/job-search-intelligence/actions/runs/37138746361) and [preview workflow](https://github.com/BrandenFarmerDev/job-search-intelligence/actions/runs/37138507982) passed quality, resource/origin guards, the additive migration check (none pending), Worker deployment, Pages upload and anonymous Access verification using the dedicated GitHub token. The first production attempt stopped before mutations; the regular environment-bound job fixes its secret-resolution failure.
+
+Production Worker `f143dd81-7865-45a2-81ff-9f44cb79d46a`, Pages `e04e088b`; preview Worker `d0af18d5-1947-42a7-9db5-816dc10cdc35`, Pages `1ceadd05`. Compatible pre-release rollback: production Worker `4ef1a952-c717-4c40-8bb7-4b346135cc15` / Pages `445f4028`; preview Worker `21a3a561-f2d6-4eb4-839b-4fd312adb6ae` / Pages `34363a79`.
+
+Authenticated production About reports API connected and the final dashboard loads 16 applications; read-only D1 count remained 16 before/after deployment. Inspected application console has no warnings/errors. Logs confirm SYNC_ENABLED=false, AI_ENABLED=false, AI_DAILY_CALL_LIMIT=0 and MICROSOFT_GRAPH_ENABLED=false. Preview environment requires owner approval with administrator bypass disabled; its waiting job was released only after checking reviewed commit `db60be7`. The token still has account-wide resource-type permissions, so every future preview approval must review the exact ref/commit.
+
+Limits: live permanent preview deletion remains consent-pending; its automated regressions pass. Production uncertainty review is owner work. Future Graph and optional free-only AI activation require separate acceptance; no paid AI or email sending is enabled.
