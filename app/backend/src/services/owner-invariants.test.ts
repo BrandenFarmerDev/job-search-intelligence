@@ -14,6 +14,17 @@ it("keeps application exclusions durable after source changes and reprocessing",
  await call(env,`/applications/${app.id}`,"PATCH",{excluded:true});await reconcile(db,{...record,status:"offer"},1,false);
  expect((await db.prepare("SELECT id FROM applications").all()).results).toHaveLength(1);expect((await db.prepare("SELECT state,manual FROM reconciliation_matches").first())).toMatchObject({state:"excluded",manual:1});expect((await dashboard(env)).total).toBe(0);close();
 });
+it("keeps a tracker row attached after the owner corrects its application date",async()=>{
+ const {env,db,close}=fixture();const tracker={...record,requisitionId:""};await reconcile(db,tracker,1,false);
+ const original=(await db.prepare("SELECT id FROM applications").first<{id:string}>())!.id;
+ await call(env,`/applications/${original}`,"PATCH",{applied_at:"2026-01-01"});
+ await reconcile(db,{...tracker,status:"interview_scheduled"},1,false);
+ const applications=(await db.prepare("SELECT id,applied_at,status FROM applications").all<{id:string;applied_at:string;status:string}>()).results;
+ const association=await db.prepare("SELECT application_id FROM reconciliation_matches WHERE source='sheet' AND source_id=?").bind(record.id).first<{application_id:string}>();
+ expect(applications).toEqual([{id:original,applied_at:"2026-01-01",status:"interview_scheduled"}]);
+ expect(association?.application_id).toBe(original);
+ close();
+});
 it("serializes owner review, merge, reprocessing and disconnect with durable sync",async()=>{
  const {env,db,close}=fixture();await acquireLease(db,"running-sync");
  for(const [path,method] of [["/review/decision","POST"],["/applications/qa/merge","POST"],["/applications/qa","PATCH"],["/reprocess","POST"],["/connections/microsoft","DELETE"],["/connections/sheets","DELETE"]]) await expect(call(env,path,method,{})).rejects.toMatchObject({code:"sync_running"});

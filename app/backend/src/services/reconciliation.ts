@@ -34,7 +34,11 @@ export async function reconcile(db: D1Database, record: SourceRecord, confidence
   const all = (await db.prepare("SELECT * FROM applications WHERE excluded=0").all<ApplicationRecord>()).results;
   const conversations = record.conversationId ? (await db.prepare("SELECT DISTINCT e.application_id FROM application_events e JOIN message_references m ON e.source_id=m.id WHERE m.conversation_id=? AND e.source='email'")
     .bind(record.conversationId).all<{ application_id: string }>()).results.map((row) => row.application_id) : [];
-  const match = matchRecord(record, all, conversations);
+  // An established source keeps its application when the owner later corrects fields used by heuristic matching.
+  // Unreviewed candidates can still be rematched as new evidence arrives.
+  const established = previous?.state !== "needs_review" && previous?.application_id
+    ? all.find((application) => application.id === previous.application_id) : undefined;
+  const match = matchRecord(established ? { ...record, applicationId: established.id } : record, all, conversations);
   const manuallyLinked = previous?.manual && previous.application_id;
   let applicationId = manuallyLinked ? previous!.application_id : match.application?.id;
   let state = needsReview ? "needs_review" : match.state;
