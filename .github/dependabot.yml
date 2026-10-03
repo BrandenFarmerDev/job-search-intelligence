@@ -9,6 +9,18 @@ updates:
     groups:
       npm-development-dependencies:
         dependency-type: development
+    ignore:
+      # eslint-plugin-jsx-a11y currently supports ESLint through version 9.
+      - dependency-name: "eslint"
+        versions: [">=10.0.0"]
+      - dependency-name: "@eslint/js"
+        versions: [">=10.0.0"]
+      # typescript-eslint currently requires TypeScript below version 6.1.
+      - dependency-name: "typescript"
+        versions: [">=6.1.0"]
+      # Keep Node declarations aligned with the Node 24 runtime in .nvmrc.
+      - dependency-name: "@types/node"
+        versions: [">=25.0.0"]
 
   - package-ecosystem: github-actions
     directory: "/"
