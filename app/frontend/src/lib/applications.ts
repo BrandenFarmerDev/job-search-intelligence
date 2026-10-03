@@ -57,7 +57,20 @@ export function presetOf({ from, to }: Pick<ApplicationFilters, "from" | "to">, 
   return to ? "custom" : (["7", "30", "90"] as const).find((days) => from === daysAgo(Number(days), now)) ?? "custom";
 }
 
-export interface ReviewItem { id: string; source: string; source_id: string; state: string; reason: string; subject: string | null; available: number }
+export const REVIEW_CAP = 100;
+export interface ReviewItem { id: string; source: string; source_id: string; state: string; reason: string; subject: string | null; available: number; snapshot?: string | null }
+
+// Sheet snapshots are untrusted JSON; only string company and role fields are ever shown.
+export function trackerLabel(snapshot: string | null | undefined): string | null {
+  if (!snapshot) return null;
+  try {
+    const parsed: unknown = JSON.parse(snapshot);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const fields = new Map(Object.entries(parsed).map(([key, value]) => [key.toLowerCase(), value]));
+    const pick = (...keys: string[]) => keys.map((key) => fields.get(key)).find((value): value is string => typeof value === "string" && value.trim() !== "")?.trim();
+    return [pick("company"), pick("role", "job title")].filter(Boolean).join(" · ") || null;
+  } catch { return null; }
+}
 export interface TimelineEvent {
   id: string; type: string; occurred_at: string; source: string; web_link: string | null; available: number; subject: string | null;
   date_known?: number; superseded?: number;

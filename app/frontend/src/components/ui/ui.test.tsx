@@ -4,12 +4,21 @@ import axe from "axe-core";
 import { useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  Alert, Button, DataTable, Drawer, EmptyState, Field, FilterChip, Kpi, Pagination, Panel, SearchInput, Skeleton, StatusBadge, Tabs,
+  Alert, Button, DataTable, Drawer, EmptyState, Field, FilterChip, Kpi, Pagination, Panel, SearchIcon, SearchInput, Skeleton, StatusBadge, Tabs,
   describeStatus, humanize, type Column,
 } from ".";
 
 afterEach(() => vi.useRealTimers());
 const scan = async (container: HTMLElement) => (await axe.run(container, { rules: { "color-contrast": { enabled: false } } })).violations;
+
+describe("Icon", () => {
+  it("keeps the base class when a class name is passed", () => {
+    const { container } = render(<SearchIcon className="qe-search-icon" size="lg" />);
+    const svg = container.querySelector("svg")!;
+    expect(svg).toHaveClass("qe-icon", "qe-search-icon");
+    expect(svg).toHaveAttribute("data-size", "lg");
+  });
+});
 
 describe("Button", () => {
   it("is a non-submitting button with variant data attributes", async () => {

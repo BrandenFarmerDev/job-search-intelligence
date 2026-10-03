@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { REVIEW_CAP } from "../lib/applications";
 import { DashboardProvider, useDashboard } from "../lib/dashboard-context";
 import { freshnessText } from "../lib/format";
 import { useTheme, type ThemePreference } from "../lib/theme";
@@ -11,7 +12,6 @@ const navItems = [
   { to: "/sources", label: "Sources & privacy" }, { to: "/about", label: "About" },
 ];
 const themes: { value: ThemePreference; label: string }[] = [{ value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }];
-const REVIEW_CAP = 100;
 
 export function Layout() {
   return <DashboardProvider><Shell /></DashboardProvider>;

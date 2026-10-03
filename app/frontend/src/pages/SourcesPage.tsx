@@ -25,7 +25,8 @@ function parseExport(text: string): { source: Record<string, unknown>; messages:
 const runColumns: Column<SyncRun>[] = [
   { key: "started", header: "Started", render: (run) => formatDateTime(run.started_at) },
   { key: "status", header: "Status", render: (run) => <StatusBadge value={run.status} /> },
-  { key: "finished", header: "Finished", render: (run) => run.finished_at ? `${formatDateTime(run.finished_at)} · ${formatDuration(run.started_at, run.finished_at)}` : "Not finished" },
+  { key: "finished", header: "Finished", render: (run) => run.finished_at ? formatDateTime(run.finished_at) : "Not finished" },
+  { key: "duration", header: "Duration", align: "end", render: (run) => run.finished_at ? formatDuration(run.started_at, run.finished_at) : "—" },
   { key: "error", header: "Error", render: (run) => run.error_code ? humanize(run.error_code) : "—" },
 ];
 
@@ -34,6 +35,7 @@ export function SourcesPage() {
   const [progress, setProgress] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [attempted, setAttempted] = useState(false);
+  const [phrase, setPhrase] = useState("");
 
   async function importLocalOutlook(file: File | undefined) {
     if (!file) return;
@@ -96,14 +98,17 @@ export function SourcesPage() {
             <h2 id="danger-heading">Danger zone</h2>
             <p className="qe-text-secondary">Deleting job data cannot be undone. Export your applications first if you need a copy.</p>
           </div>
-          <Button variant="destructive" disabled={busy} onClick={() => { setAttempted(false); setConfirming(true); }}>Delete all job data</Button>
+          <Button variant="destructive" disabled={busy} onClick={() => { setAttempted(false); setPhrase(""); setConfirming(true); }}>Delete all job data</Button>
         </section>
         <Drawer open={confirming} title="Delete all job data" onClose={() => setConfirming(false)}>
-          <form className="qe-stack" data-gap="4" onSubmit={(event) => { event.preventDefault(); void deleteAll(String(new FormData(event.currentTarget).get("confirmation"))); }}>
+          <form className="qe-stack" data-gap="4" onSubmit={(event) => { event.preventDefault(); if (phrase === CONFIRMATION) void deleteAll(phrase); }}>
             <Alert tone="danger" title="This cannot be undone">This removes connections and all imported records. Export first if you need a copy. Deleted data cannot be recovered, and imports stay paused until you reconnect.</Alert>
             {attempted && error && <Alert tone="danger" title="Nothing was deleted">{error}</Alert>}
-            <Field label={`Type ${CONFIRMATION}`}>{(control) => <input {...control} className="qe-input" name="confirmation" required pattern={CONFIRMATION} autoComplete="off" />}</Field>
-            <div className="qe-cluster"><Button type="submit" variant="destructive" disabled={busy}>Delete permanently</Button></div>
+            <Field label={`Type ${CONFIRMATION}`}>{(control) => <input {...control} className="qe-input" name="confirmation" value={phrase} onChange={(event) => setPhrase(event.target.value)} autoComplete="off" />}</Field>
+            <div className="qe-cluster">
+              <Button onClick={() => setConfirming(false)}>Cancel</Button>
+              <Button type="submit" variant="destructive" disabled={busy || phrase !== CONFIRMATION}>Delete permanently</Button>
+            </div>
           </form>
         </Drawer>
       </>;

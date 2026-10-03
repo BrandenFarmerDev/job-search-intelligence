@@ -5,7 +5,7 @@ import { plannedCapabilities } from "../content/project";
 
 export function AboutPage() {
   return <>
-    <PageHeader title="A reviewable job-search timeline" description="Review application progress alongside the source evidence and your own decisions." />
+    <PageHeader title="A reviewable job-search timeline" documentTitle="About" description="Review application progress alongside the source evidence and your own decisions." />
     <ApiStatus />
     <Panel title="How this workspace works" description="Outlook and tracker connections are read-only. Uncertain matches require your review before they affect results.">
       <div className="qe-grid" data-cols="3" data-gap="6">{plannedCapabilities.map((item) => <article key={item.title} className="qe-stack" data-gap="1">

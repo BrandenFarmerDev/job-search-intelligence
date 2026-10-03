@@ -18,7 +18,8 @@ describe("list and URL state", () => {
     renderApp("/applications");
     await ready();
     expect(Object.fromEntries(lastList())).toEqual({ sort: "applied_desc", page: "0", pageSize: "25" });
-    expect(screen.getByText("63 applications · Sorted by applied date (newest)")).toBeInTheDocument();
+    expect(screen.getByText("Sorted by applied date (newest)")).toBeInTheDocument();
+    expect(screen.queryByText(/63 applications/)).not.toBeInTheDocument();
     expect(screen.getByText("1–25 of 63")).toBeInTheDocument();
     expect(screen.getByText("AnotherCo")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Export CSV" })).toHaveAttribute("href", "/api/job-intelligence/export");
@@ -115,6 +116,7 @@ describe("empty and failed lists", () => {
     renderApp("/applications?q=zzz", makeState(), none);
     expect(await screen.findByText("No applications match these filters")).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "Applications pages" })).not.toBeInTheDocument();
+    expect(screen.getByText("No applications · Sorted by applied date (newest)")).toHaveAttribute("aria-live", "polite");
     await userEvent.click(screen.getAllByRole("button", { name: "Clear all filters" })[0]);
     expect(await screen.findByText("No applications yet")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open Sources & privacy" })).toHaveAttribute("href", "/sources");

@@ -10,7 +10,7 @@ import { Button, DataTable, Drawer, EmptyState, Field, FilterChip, Pagination, S
 import { buildApplicationsQuery, datePresets, filterKeys, pageSizes, presetOf, reconciliationOptions, readView, sortLabels, sourceOptions, type DatePreset, type FilterKey } from "../lib/applications";
 import { exportUrl } from "../lib/api";
 import { useDashboard } from "../lib/dashboard-context";
-import { daysAgo, formatDate, plural } from "../lib/format";
+import { daysAgo, formatDate } from "../lib/format";
 import { useApiResource } from "../lib/use-api";
 
 const sortStates: Record<ApplicationSort, SortState> = {
@@ -97,7 +97,7 @@ export function ApplicationsPage() {
       </div>}
     </div>
     <div className="qe-stack" data-gap="3">
-      <p className="qe-result-line" aria-live="polite">{list.data ? `${plural(total, "application")} · Sorted by ${sortLabels[sort].summary}` : list.error ? "" : "Loading applications…"}</p>
+      <p className="qe-result-line" aria-live="polite">{list.data ? `${total ? "" : "No applications · "}Sorted by ${sortLabels[sort].summary}` : list.error ? "" : "Loading applications…"}</p>
       {list.error ? <ErrorAlert message={list.error} title="Applications could not be loaded" />
         : <DataTable caption="Applications" columns={columns} rows={list.data?.applications ?? []} rowKey={(row) => row.id} loading={!list.data} empty={empty} currentRowKey={appId || null}
           sort={sortStates[sort]} onSort={(key) => update({ sort: sortKeyOf[key] === "applied_desc" ? null : sortKeyOf[key] })}

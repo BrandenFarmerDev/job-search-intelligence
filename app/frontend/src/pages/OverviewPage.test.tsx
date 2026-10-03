@@ -21,7 +21,7 @@ describe("Overview key figures", () => {
     expect(kpi("Response rate")).toHaveTextContent("2 of 4 applications");
     expect(kpi("Interview rate")).toHaveTextContent("25%");
     expect(kpi("Median days to first response")).toHaveTextContent("3.5days");
-    expect(kpi("Applications needing review")).toHaveTextContent("Waiting for your decision");
+    expect(kpi("Applications needing review")).toHaveTextContent("1 source record in the review queue");
     expect(within(kpi("Applications needing review")).getByRole("link", { name: "Open review queue" })).toHaveAttribute("href", "/review");
     expect(screen.getByText(/Applications since Aug 2026/)).toBeInTheDocument();
   });
@@ -29,6 +29,7 @@ describe("Overview key figures", () => {
     const state = makeState();
     state.dashboard.medianFirstResponseDays = null;
     state.dashboard.metrics.review = 0;
+    state.reviews = [];
     renderApp("/", state);
     await screen.findByRole("group", { name: "Key figures" });
     expect(kpi("Median days to first response")).toHaveTextContent("Unavailable");

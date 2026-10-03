@@ -13,15 +13,18 @@ const nav = () => within(screen.getByRole("navigation", { name: "Primary navigat
 
 describe("routes", () => {
   it.each([
-    ["/", "Overview"], ["/applications", "Applications"], ["/review", "Review"], ["/sources", "Sources & privacy"], ["/about", "A reviewable job-search timeline"],
-  ])("renders %s with its page heading", async (path, heading) => {
+    ["/", "Overview", "Overview"], ["/applications", "Applications", "Applications"], ["/review", "Review", "Review"], ["/sources", "Sources & privacy", "Sources & privacy"],
+    ["/about", "A reviewable job-search timeline", "About"],
+  ])("renders %s with its page heading and document title", async (path, heading, title) => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(health)));
     renderApp(path);
     expect(await screen.findByRole("heading", { level: 1, name: heading })).toBeInTheDocument();
+    expect(document.title).toBe(`${title} – Job Search Intelligence`);
     await waitFor(() => expect(intelligenceApi).toHaveBeenCalledWith("/dashboard", "GET", undefined, expect.any(AbortSignal)));
   });
   it("shows a not-found page with a way back", async () => {
     renderApp("/nowhere");
+    expect(document.title).toBe("Page not found – Job Search Intelligence");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Page not found");
     expect(screen.getByRole("link", { name: "Return home" })).toHaveAttribute("href", "/");
     expect(nav().queryByRole("link", { current: "page" })).not.toBeInTheDocument();
@@ -108,7 +111,7 @@ describe("theme control", () => {
 describe("shell state", () => {
   it("shows the last successful sync in the header", async () => {
     renderApp("/");
-    expect(await screen.findAllByText(/Last successful sync:/)).toHaveLength(2);
+    expect(await screen.findAllByText(/Last successful sync:/)).toHaveLength(1);
   });
   it("offers a sign-in link when the dashboard cannot load", async () => {
     renderApp("/review", makeState(), (path) => { if (path === "/dashboard") throw new Error("Sign in through the owner access page to continue."); });

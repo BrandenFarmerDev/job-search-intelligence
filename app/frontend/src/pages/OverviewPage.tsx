@@ -5,7 +5,9 @@ import { DashboardGate } from "../components/DashboardGate";
 import { PageHeader } from "../components/PageHeader";
 import { BarChart, ColumnChart, StageReach } from "../components/charts";
 import { DataTable, EmptyState, Kpi, Panel, Skeleton, Tabs, humanize, type Column, type SortState } from "../components/ui";
-import { formatDate, formatMonth, freshnessText, oneDecimal, percent } from "../lib/format";
+import { formatDate, formatMonth, oneDecimal, percent, plural } from "../lib/format";
+import { useDashboard } from "../lib/dashboard-context";
+import { REVIEW_CAP } from "../lib/applications";
 
 const FOLLOW_UP_DAYS = 7; const DAY = 86_400_000;
 const dimensions: { id: OutcomeDimension; label: string; header: string }[] = [
@@ -43,10 +45,12 @@ function OverviewSkeleton() {
 
 function OverviewContent({ dashboard }: { dashboard: Dashboard }) {
   const { metrics, groups, weekly, medianFirstResponseDays } = dashboard;
+  const { reviews } = useDashboard();
+  const queue = reviews.length >= REVIEW_CAP ? `${REVIEW_CAP}+ source records` : plural(reviews.length, "source record");
   const earliest = Object.keys(groups.month ?? {}).sort()[0];
   const distribution = (name: string) => Object.entries(groups[name] ?? {}).map(([label, value]) => ({ label: humanize(label), value }));
   return <>
-    <p className="qe-text-secondary">{earliest ? `Applications since ${formatMonth(earliest)} · ` : ""}{freshnessText(dashboard.lastSuccessfulSyncAt)}</p>
+    {earliest && <p className="qe-text-secondary">Applications since {formatMonth(earliest)}</p>}
     <div className="qe-kpi-strip" role="group" aria-label="Key figures">
       <Kpi label="Applications" value={metrics.total ?? 0} context={`${metrics.thisWeek ?? 0} in the last 7 days`} />
       <Kpi label="Response rate" value={percent(metrics.responsesRate ?? 0)} context={`${metrics.responses ?? 0} of ${metrics.total ?? 0} applications`} />
@@ -54,7 +58,7 @@ function OverviewContent({ dashboard }: { dashboard: Dashboard }) {
       <Kpi label="Median days to first response" value={medianFirstResponseDays === null ? "Unavailable" : oneDecimal(medianFirstResponseDays)} unit={medianFirstResponseDays === null ? undefined : "days"}
         context={medianFirstResponseDays === null ? "No dated responses yet" : "Responses with a known date"} />
       <Kpi label="Applications needing review" value={metrics.review ?? 0} tone={metrics.review > 0 ? "warning" : undefined}
-        context={metrics.review > 0 ? "Waiting for your decision" : "Nothing waiting"} link={<Link to="/review">Open review queue</Link>} />
+        context={metrics.review > 0 || reviews.length > 0 ? `${queue} in the review queue` : "Nothing waiting"} link={<Link to="/review">Open review queue</Link>} />
     </div>
     <Panel title="Outcomes and trends">
       <div className="qe-grid" data-cols="2" data-gap="6">

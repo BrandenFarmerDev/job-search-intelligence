@@ -27,6 +27,19 @@ describe("review queue", () => {
     expect(within(items[1]).queryByText(/no longer available/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Showing the first 100/)).not.toBeInTheDocument();
   });
+  it("names tracker rows from safe snapshot fields and never shows raw JSON", async () => {
+    const state = makeState();
+    const sheet = (id: string, snapshot: string | null) => ({ ...state.reviews[0], id, source: "sheet", source_id: id, subject: null, snapshot });
+    state.reviews = [
+      sheet("a", JSON.stringify({ Company: "Acme", "Job Title": "Engineer" })), sheet("b", JSON.stringify({ company: "Globex" })),
+      sheet("c", JSON.stringify({ company: 7, role: ["x"] })), sheet("d", "not json"), sheet("e", JSON.stringify(["Acme", "Engineer"])), sheet("f", "null"),
+    ];
+    renderApp("/review", state);
+    const items = within(await within(screen.getByRole("main")).findByRole("list")).getAllByRole("listitem");
+    const titles = items.map((item) => within(item).getByRole("heading", { level: 3 }).textContent);
+    expect(titles).toEqual(["Tracker row: Acme · Engineer", "Tracker row: Globex", "Tracker row", "Tracker row", "Tracker row", "Tracker row"]);
+    expect(screen.queryByText(/[{[]/)).not.toBeInTheDocument();
+  });
   it("saves a decision with the chosen application and verified event", async () => {
     const state = makeState();
     renderApp("/review", state);

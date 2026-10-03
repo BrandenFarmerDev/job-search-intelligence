@@ -124,6 +124,7 @@ describe("sync history", () => {
     const table = screen.getByRole("table", { name: "Sync history" });
     expect(within(table).getAllByRole("row")).toHaveLength(4);
     expect(within(table).getAllByText(/12 s/)).toHaveLength(3);
+    expect(within(table).getByRole("columnheader", { name: "Duration" })).toHaveAttribute("data-align", "end");
     expect(within(table).getAllByText("Provider request failed")).toHaveLength(3);
   });
   it("does not warn when a recent run succeeded, and handles runs that have not finished", async () => {
@@ -133,7 +134,7 @@ describe("sync history", () => {
     const table = await screen.findByRole("table", { name: "Sync history" });
     expect(screen.queryByText(/last three syncs failed/)).not.toBeInTheDocument();
     expect(within(table).getByText("Not finished")).toBeInTheDocument();
-    expect(within(table).getByText("—")).toBeInTheDocument();
+    expect(within(table).getAllByText("—")).toHaveLength(2);
   });
   it("says so when there are no runs", async () => {
     renderApp("/sources", dashboardWith((state) => { state.dashboard.runs = []; }));
@@ -150,10 +151,12 @@ describe("delete all job data", () => {
     renderApp("/sources");
     const dialog = await open();
     await userEvent.type(dialog.getByLabelText("Type DELETE ALL JOB DATA"), "delete everything");
+    expect(dialog.getByRole("button", { name: "Delete permanently" })).toBeDisabled();
     await userEvent.click(dialog.getByRole("button", { name: "Delete permanently" }));
     expect(calls("/data")).toHaveLength(0);
     await userEvent.clear(dialog.getByLabelText("Type DELETE ALL JOB DATA"));
     await userEvent.type(dialog.getByLabelText("Type DELETE ALL JOB DATA"), "DELETE ALL JOB DATA");
+    expect(dialog.getByRole("button", { name: "Delete permanently" })).toBeEnabled();
     await userEvent.click(dialog.getByRole("button", { name: "Delete permanently" }));
     await waitFor(() => expect(intelligenceApi).toHaveBeenCalledWith("/data", "DELETE", { confirmation: "DELETE ALL JOB DATA" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -171,7 +174,12 @@ describe("delete all job data", () => {
   it("can be dismissed without deleting anything", async () => {
     renderApp("/sources");
     const dialog = await open();
-    await userEvent.click(dialog.getByRole("button", { name: "Close" }));
+    await userEvent.type(dialog.getByLabelText("Type DELETE ALL JOB DATA"), "DELETE ALL JOB DATA");
+    await userEvent.click(dialog.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Delete all job data" }));
+    expect(screen.getByLabelText("Type DELETE ALL JOB DATA")).toHaveValue("");
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(calls("/data")).toHaveLength(0);
   });

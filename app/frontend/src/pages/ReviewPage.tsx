@@ -5,9 +5,7 @@ import { PageHeader } from "../components/PageHeader";
 import { StatusOptions } from "../components/StatusOptions";
 import { Alert, Button, EmptyState, Field, Panel, StatusBadge, humanize } from "../components/ui";
 import { useDashboard } from "../lib/dashboard-context";
-import type { ReviewItem } from "../lib/applications";
-
-const QUEUE_CAP = 100;
+import { REVIEW_CAP, trackerLabel, type ReviewItem } from "../lib/applications";
 
 export function ReviewPage() {
   const { reviews, busy, runAction } = useDashboard();
@@ -20,7 +18,7 @@ export function ReviewPage() {
   return <>
     <PageHeader title="Review" headingRef={heading} description="Uncertain source records wait here until you link them to an application or exclude them." />
     <DashboardGate>{() => <>
-      {reviews.length >= QUEUE_CAP && <Alert tone="info">Showing the first {QUEUE_CAP} records. Resolve some to see the rest.</Alert>}
+      {reviews.length >= REVIEW_CAP && <Alert tone="info">Showing the first {REVIEW_CAP} records. Resolve some to see the rest.</Alert>}
       <Panel title="Source records to review" description="Each record was found in Outlook or the tracker but could not be matched with confidence.">
         {!reviews.length ? <EmptyState title="No outstanding source records." description="New uncertain matches appear here after the next sync." />
           : <ul className="qe-review-list">{reviews.map((item) => <li key={item.id} className="qe-review-item">
@@ -36,7 +34,8 @@ function ReviewRow({ item, open, busy, onToggle, onDecide }: ReviewRowProps) {
   const formId = useId();
   const [application, setApplication] = useState("");
   const [type, setType] = useState("");
-  const title = item.subject || "Tracker row";
+  const identity = item.source === "sheet" ? trackerLabel(item.snapshot) : null;
+  const title = item.subject || (identity ? `Tracker row: ${identity}` : "Tracker row");
   return <>
     <div className="qe-review-summary">
       <div className="qe-stack" data-gap="1">

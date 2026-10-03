@@ -95,7 +95,7 @@
   .qe-search { position: relative; display: block; min-inline-size: 0; }
   .qe-search > .qe-input { padding-inline: var(--qe-space-8); }
   .qe-search > .qe-input::-webkit-search-cancel-button { appearance: none; }
-  .qe-search-icon { position: absolute; inset-block-start: 50%; inset-inline-start: var(--qe-space-3); translate: 0 -50%; color: var(--qe-color-text-muted); pointer-events: none; }
+  .qe-search-icon { inline-size: var(--qe-icon-size); block-size: var(--qe-icon-size); position: absolute; inset-block-start: 50%; inset-inline-start: var(--qe-space-3); translate: 0 -50%; color: var(--qe-color-text-muted); pointer-events: none; }
   .qe-search-clear {
     position: absolute;
     inset-block: 0;

@@ -1,8 +1,9 @@
 import type { ReactNode, SVGProps } from "react";
+import { cx } from "../../lib/cx";
 
 export type IconProps = Omit<SVGProps<SVGSVGElement>, "children"> & { size?: "lg" | "xl" };
-const icon = (paths: ReactNode) => function Icon({ size, ...rest }: IconProps) {
-  return <svg className="qe-icon" data-size={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false" {...rest}>{paths}</svg>;
+const icon = (paths: ReactNode) => function Icon({ size, className, ...rest }: IconProps) {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false" {...rest} className={cx("qe-icon", className)} data-size={size}>{paths}</svg>;
 };
 
 export const SearchIcon = icon(<><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></>);
