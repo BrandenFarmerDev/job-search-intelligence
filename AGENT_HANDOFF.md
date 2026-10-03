@@ -1,6 +1,6 @@
 # Agent handoff — October 3, 2026
 
-Resume in `C:\GitHub\Apps\job-search-intelligence`, branch `bfarmer/scaffold-foundation`. Environment cwd may still point to portfolio; always set workdir.
+Resume in `C:\GitHub\Apps\job-search-intelligence`, branch `bfarmer/deployment-secret-wiring`. Environment cwd may still point to portfolio; always set workdir.
 
 ## Authorization and decisions
 
@@ -18,7 +18,7 @@ Final full quality passes: 323 tests (97 backend/196 frontend/12 shared/18 guard
 
 Current deployments, resource IDs, browser evidence and rollback versions are recorded in plan section 21/docs/qa.md. Latest preview Pages 34363a79 / Worker 21a3a561-f2d6-4eb4-839b-4fd312adb6ae. Pre-release production Pages 445f4028 / Worker 4ef1a952-c717-4c40-8bb7-4b346135cc15; record the release result in PR #1. Final date-correction association regression and independent GPT-6 Luna QA pass.
 
-PR #1 is open from `bfarmer/scaffold-foundation`. Hosted quality and CodeQL pass with zero open CodeQL or Dependabot alerts. The dedicated 90-day Cloudflare deployment token is stored in both protected GitHub environments; Owner authorized merge/deploy. GitHub email verification succeeded and `ENABLE_DEPLOYMENTS=true` was saved. Preview deployed via existing local OAuth; GitHub token execution is unverified until the production workflow succeeds.
+PR #1 merged from `bfarmer/scaffold-foundation`; deployment follow-up is on `bfarmer/deployment-secret-wiring`. Hosted quality and CodeQL pass with zero open CodeQL or Dependabot alerts. The dedicated 90-day Cloudflare deployment token is stored in both protected GitHub environments; Owner authorized merge/deploy. GitHub email verification succeeded and `ENABLE_DEPLOYMENTS=true` was saved. Preview deployed via existing local OAuth; GitHub token execution is unverified until the production workflow succeeds.
 
 ## Remaining work and blockers
 
@@ -31,3 +31,7 @@ Keep SYNC_ENABLED=false, AI_ENABLED=false, AI_DAILY_CALL_LIMIT=0 and MICROSOFT_G
 ## Resuming browser work
 
 Use the computer-use skill; after summary call `cua.rewriteDocumentation`. Reuse Chrome browser ID 4; existing preview/health tabs 313605168/313605169. Google setup is complete. Tab IDs can become stale; recover only in the selected browser. Re-mark pending tabs as handoffs before ending a new turn.
+
+## October 3 deployment follow-up
+
+PR #1 merged as `bcbf6b0` after hosted quality/CodeQL passed. Production run [37137725830](https://github.com/BrandenFarmerDev/job-search-intelligence/actions/runs/37137725830) stopped before any Cloudflare change: deployment guard received empty secret values despite both secrets being present in the protected production environment. Follow-up branch `bfarmer/deployment-secret-wiring` binds deployment directly to its protected environment as a regular CI job, avoiding the observed reusable-workflow secret-resolution failure. Deployment steps, branch restrictions, permissions and the fail-closed guard remain in place; no broad secret inheritance is introduced. Actual preview/production GitHub deployment still needs verification.
