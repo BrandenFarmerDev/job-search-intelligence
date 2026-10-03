@@ -1,6 +1,6 @@
 # Deployment and provider setup
 
-Source is published on `bfarmer/scaffold-foundation` in PR #1. The owner authorized merge and production deployment on October 3; GitHub verification succeeded and `ENABLE_DEPLOYMENTS=true` is saved. Scheduled sync, AI and Graph remain disabled. Preview uses final reviewed code; production workflow/token verification is tracked in the PR release evidence.
+PR #1 and deployment fix PR #3 are merged into main. The owner authorized merge and production deployment on October 3; GitHub verification succeeded and `ENABLE_DEPLOYMENTS=true` is saved. Scheduled sync, AI and Graph remain disabled. Preview and production now run final reviewed code; both GitHub deployments and authenticated production health passed.
 
 ## Resource inventory
 
@@ -48,7 +48,7 @@ Once the owner supplies a usable directory:
 
 Repository: `BrandenFarmerDev/job-search-intelligence`. Main ruleset `24341809` was copied from portfolio `24193519`: PR required, updated branch, required `Quality gates` and `Analyze JavaScript and TypeScript`, no force push/deletion or bypass.
 
-Preview/production environments limit branches to `bfarmer/*` / `main`. Exact environment variables and account-ID secrets are configured:
+Preview/production environments limit branches to `bfarmer/*` / `main`. Preview additionally requires owner `BrandenFarmerDev` approval before secrets become available, with administrator bypass disabled. The sole owner may approve their own deliberately reviewed run; approval must follow code/security review because the token permissions cover account resources. Exact environment variables and account-ID secrets are configured:
 
 | Entry | Type |
 | --- | --- |
@@ -69,3 +69,17 @@ Run `npm ci`, `npm run quality`, named dry runs and release checklist before dep
 GitHub workflow checks isolated database IDs/exact origins/dedicated project, deploys Worker before Pages, then verifies **unauthenticated Access login challenges** on the custom site/API. It does not falsely treat an Access redirect as a passing application health response. Authenticated browser/application smoke remains a release requirement.
 
 No destructive DB rollback is automated. Record prior Worker/Pages versions, roll back compatible code via Cloudflare deployment controls, and use D1 Time Travel/manual recovery only under an explicit reviewed recovery plan. Preserve backwards-compatible contracts during Worker-before-Pages deployment.
+
+## October 3 deployment follow-up
+
+PR #1 merged as `bcbf6b0` after hosted quality/CodeQL passed. Production run [37137725830](https://github.com/BrandenFarmerDev/job-search-intelligence/actions/runs/37137725830) stopped before any Cloudflare change: deployment guard received empty secret values despite both secrets being present in the protected production environment. Follow-up branch `bfarmer/deployment-secret-wiring` binds deployment directly to its protected environment as a regular CI job, avoiding the observed reusable-workflow secret-resolution failure. Deployment steps, branch restrictions, permissions and the fail-closed guard remain in place; no broad secret inheritance is introduced. Both GitHub deployments subsequently passed; verified versions and workflow evidence follow.
+
+## Verified release — October 3, 2026
+
+PR #1 and the reviewed deployment fix in PR #3 are merged. [Production workflow](https://github.com/BrandenFarmerDev/job-search-intelligence/actions/runs/37138746361) and [preview workflow](https://github.com/BrandenFarmerDev/job-search-intelligence/actions/runs/37138507982) passed quality, resource/origin guards, the additive migration check (none pending), Worker deployment, Pages upload and anonymous Access verification using the dedicated GitHub token. The first production attempt stopped before mutations; the regular environment-bound job fixes its secret-resolution failure.
+
+Production Worker `f143dd81-7865-45a2-81ff-9f44cb79d46a`, Pages `e04e088b`; preview Worker `d0af18d5-1947-42a7-9db5-816dc10cdc35`, Pages `1ceadd05`. Compatible pre-release rollback: production Worker `4ef1a952-c717-4c40-8bb7-4b346135cc15` / Pages `445f4028`; preview Worker `21a3a561-f2d6-4eb4-839b-4fd312adb6ae` / Pages `34363a79`.
+
+Authenticated production About reports API connected and the final dashboard loads 16 applications; read-only D1 count remained 16 before/after deployment. Inspected application console has no warnings/errors. Logs confirm SYNC_ENABLED=false, AI_ENABLED=false, AI_DAILY_CALL_LIMIT=0 and MICROSOFT_GRAPH_ENABLED=false. Preview environment requires owner approval with administrator bypass disabled; its waiting job was released only after checking reviewed commit `db60be7`. The token still has account-wide resource-type permissions, so every future preview approval must review the exact ref/commit.
+
+Limits: live permanent preview deletion remains consent-pending; its automated regressions pass. Production uncertainty review is owner work. Future Graph and optional free-only AI activation require separate acceptance; no paid AI or email sending is enabled.
