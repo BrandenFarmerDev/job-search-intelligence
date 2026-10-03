@@ -816,7 +816,7 @@ This is the canonical todo list. Code/configuration verification and live provid
 - [x] Retention, disconnect/delete/export/reprocess with provenance and safe CSV. Deletion durably pauses imports.
 - [x] Clean npm ci; current full quality passes: 323 tests, all coverage floors, zero lint warnings, 0% duplication, fresh bindings, types, builds, local migrations and dependency audit.
 - [x] Apply migration 0003 to preview and production D1 before deploying code that relies on the normalized application status. October 3 checks confirmed schema version 3, trigger presence, zero legacy statuses and unchanged application counts in both environments.
-- [x] Local actionlint and isolated Worker dry runs; actual final Worker and Pages deployments succeed.
+- [x] Local actionlint and isolated Worker dry runs pass; final reviewed preview Worker and Pages deployment succeeded. Production release workflow remains pending.
 - [x] Real synthetic Workflow/D1 replay: two messages produce one application/two events; unchanged replay processes zero records. Final owner-browser run completes with correct interview status and email-only reconciliation.
 - [x] All custom API/site and current default/preview/hash Pages aliases reject unauthenticated requests with their configured Access challenge. Owner browser works; no application-origin console warnings/errors on inspected dashboard flows.
 - [x] Separate cost-effective GPT-6 Luna QA review; concrete findings fixed and rechecked, including the local-to-Graph identity/authority transition and default COM privacy scope.

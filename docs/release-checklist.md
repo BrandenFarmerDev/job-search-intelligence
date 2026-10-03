@@ -18,7 +18,7 @@ Implementation is in PR #1. Version one uses local Outlook import and the verifi
 - [x] Migrations 0001–0003 applied remotely to both D1 databases; workers.dev/version preview routes disabled. Schema version 3, trigger presence, zero legacy statuses and unchanged application counts verified October 3.
 - [x] SSL custom frontend domains configured; proxied test CNAME points to preview branch.
 - [x] Unauthenticated test API returns expected owner Access challenge; backend verifies signed JWT independently.
-- [x] Latest frontend/Worker versions deployed and authenticated owner browser smoke recorded; protected About health works in both environments.
+- [x] Final reviewed preview frontend/Worker deployed and authenticated About health passed October 3. Prior production About health passed; final production deployment/smoke remain pending.
 - [x] Desktop/mobile/system light/dark, keyboard skip link, synthetic timeline/source filter, empty production and application console checks.
 - [x] October 3 final preview: native Chrome 200% zoom without overflow, light/dark, date filter, correction, review resolution, merge with matching offer metrics and CSV export.
 - [ ] Live permanent preview deletion/pause check: pending action-time user consent; automated regressions pass.
