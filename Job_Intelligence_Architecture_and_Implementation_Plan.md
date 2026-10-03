@@ -860,3 +860,13 @@ This is the canonical todo list. Code/configuration verification and live provid
 - GitHub main ruleset `24341809` matches portfolio `24193519`; preview/production environments and dedicated deploy-token secrets are configured. PR #1 contains the reviewed implementation, with hosted quality and CodeQL checks passing.
 - Google project `premium-fuze-510400-n4`, Sheets API enabled. Reader `job-tracker-production-reader@premium-fuze-510400-n4.iam.gserviceaccount.com` has no project IAM roles and Viewer access only to the identified tracker. Its JSON credential is a production Worker secret; the downloaded copy was deleted. Preview has no tracker identity or credential.
 - Full results and limitations: [docs/qa.md](docs/qa.md). Resume instructions: [AGENT_HANDOFF.md](AGENT_HANDOFF.md).
+
+### October 3 release execution
+
+- [x] PR #1 merged as `bcbf6b0` after required quality/CodeQL passed.
+- [x] First production workflow failed closed before Cloudflare mutations because environment secrets were empty in its reusable job.
+- [x] Replace reusable deployment with a regular job bound directly to its protected environment; preserve gates, permissions and isolation. Actionlint and full quality (323 tests) pass; independent code QA passed.
+- [x] Independent security review identified preview dispatch exposure to an account-scoped token; configure mandatory owner environment approval and disable administrator bypass.
+- [ ] Validate the deployment correction with a real GitHub preview deployment, then protected PR merge and production smoke.
+
+The live preview deletion test remains consent-pending; integrations remain disabled.

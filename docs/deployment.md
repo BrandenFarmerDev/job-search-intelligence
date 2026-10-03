@@ -48,7 +48,7 @@ Once the owner supplies a usable directory:
 
 Repository: `BrandenFarmerDev/job-search-intelligence`. Main ruleset `24341809` was copied from portfolio `24193519`: PR required, updated branch, required `Quality gates` and `Analyze JavaScript and TypeScript`, no force push/deletion or bypass.
 
-Preview/production environments limit branches to `bfarmer/*` / `main`. Exact environment variables and account-ID secrets are configured:
+Preview/production environments limit branches to `bfarmer/*` / `main`. Preview additionally requires owner `BrandenFarmerDev` approval before secrets become available, with administrator bypass disabled. The sole owner may approve their own deliberately reviewed run; approval must follow code/security review because the token permissions cover account resources. Exact environment variables and account-ID secrets are configured:
 
 | Entry | Type |
 | --- | --- |
@@ -69,3 +69,7 @@ Run `npm ci`, `npm run quality`, named dry runs and release checklist before dep
 GitHub workflow checks isolated database IDs/exact origins/dedicated project, deploys Worker before Pages, then verifies **unauthenticated Access login challenges** on the custom site/API. It does not falsely treat an Access redirect as a passing application health response. Authenticated browser/application smoke remains a release requirement.
 
 No destructive DB rollback is automated. Record prior Worker/Pages versions, roll back compatible code via Cloudflare deployment controls, and use D1 Time Travel/manual recovery only under an explicit reviewed recovery plan. Preserve backwards-compatible contracts during Worker-before-Pages deployment.
+
+## October 3 deployment follow-up
+
+PR #1 merged as `bcbf6b0` after hosted quality/CodeQL passed. Production run [37137725830](https://github.com/BrandenFarmerDev/job-search-intelligence/actions/runs/37137725830) stopped before any Cloudflare change: deployment guard received empty secret values despite both secrets being present in the protected production environment. Follow-up branch `bfarmer/deployment-secret-wiring` binds deployment directly to its protected environment as a regular CI job, avoiding the observed reusable-workflow secret-resolution failure. Deployment steps, branch restrictions, permissions and the fail-closed guard remain in place; no broad secret inheritance is introduced. Actual preview/production GitHub deployment still needs verification.
