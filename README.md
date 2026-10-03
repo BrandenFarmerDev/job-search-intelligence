@@ -1,38 +1,24 @@
-# Job Search Intelligence
+# Job search intelligence
 
-**Status: Prototype — in development.** This repository currently contains project documentation and a `.gitignore`; application code and a working demo have not been implemented.
+Private owner dashboard for Outlook job-search evidence and a read-only Google Sheets application tracker. Cloudflare Pages, Workers, Workflows and D1 provide separate test/production environments. The npm workspaces follow the portfolio architecture: React/Vite frontend, Worker/D1 backend and serializable shared contracts.
 
-A private-first application that turns application confirmations and recruiter conversations into a reviewable job-search timeline. Its purpose is to make important events easier to follow while preserving the evidence behind each event.
+Version one includes owner authorization, the local classic-Outlook export/import path, read-only tracker sync, rules-first classification, auditable reconciliation/corrections, analytics/timelines, follow-up recommendations, durable ETL and privacy controls. The local Outlook path and Google tracker reader completed their first production imports. Microsoft Graph remains implemented and tested behind `MICROSOFT_GRAPH_ENABLED=false` for a later unattended Outlook release; its routes, workflow reads and UI controls are unavailable in version one. Scheduled imports and AI are paused; paid AI budget is $0.
 
-## Planned scope
+Development occurs on `bfarmer/scaffold-foundation`. GitHub Actions run the same quality gates and CodeQL before any merge, while Cloudflare environment protection keeps deployments disabled until release acceptance.
 
-- Import relevant application and recruiter-message events through Microsoft Graph.
-- Organize events into a timeline with links to their source evidence.
-- Let the owner review and correct event associations before relying on them.
-- Support follow-up and outcome analysis without inventing application status or treating an inferred event as confirmed.
+## Local commands
 
-## Intended stack
-
-React, TypeScript, Microsoft Graph, Cloudflare Workers, and Cloudflare D1. Integration details, authentication, and the data model will be finalized during implementation.
-
-## Data boundaries
-
-The public demo will use synthetic data. Real mailbox messages, recruiter conversations, access tokens, and private application records must stay outside Git. Any future live-mail integration requires owner authentication and deliberately scoped access.
-
-This application will have its own Worker and D1 database. Its private records will not be shared with the portfolio database or used as retrieval sources for Ask Branden.
-
-## Getting started
-
-Clone the repository to begin implementation:
+Use Node 24.19+ (below 25) and npm 11.
 
 ```sh
-git clone https://github.com/BrandenFarmerDev/job-search-intelligence.git
-cd job-search-intelligence
+npm ci
+npm run db:migrate:local
+npm run dev
+npm run quality
 ```
 
-There are no install, development, test, or deployment commands yet. Add reproducible setup and quality checks alongside the first application implementation. Keep secrets in local ignored configuration or Worker secrets; `VITE_` variables are public.
+Local private routes fail closed until real Access is configured; there is no development owner bypass. Integration tests use synthetic fixtures and SQLite-backed D1 semantics. `npm run build` builds frontend assets and dry-runs the Worker without publishing. Never copy production credentials/data into local or preview.
 
-## Portfolio
+Quality gates require zero lint warnings, at least 85% statements/branches/functions/lines in each suite, duplication below 3%, fresh Worker types, strict TypeScript, builds/migrations and zero reported dependency audit vulnerabilities. Local audit cannot prove the absence of every security defect. GitHub CodeQL must run on published source before release.
 
-- [Project outline](https://brandenfarmer.com/work#job-search-intelligence)
-- [Portfolio source](https://github.com/BrandenFarmerDev/branden-farmer-portfolio)
+Read [the execution tracker](Job_Intelligence_Architecture_and_Implementation_Plan.md), [architecture](docs/architecture.md), [local Outlook fallback](docs/outlook-local-fallback.md), [deployment](docs/deployment.md), [QA evidence](docs/qa.md), [release checklist](docs/release-checklist.md), and [handoff](AGENT_HANDOFF.md).

@@ -1,0 +1,9 @@
+{
+  "threshold": 2.99,
+  "minLines": 8,
+  "minTokens": 50,
+  "formats": ["typescript", "tsx", "javascript", "css"],
+  "ignore": ["**/.wrangler/**", "**/dist/**", "**/coverage/**", "**/node_modules/**", "**/*.test.*", "**/test/**", "**/*.d.ts"],
+  "reporters": ["console", "json"],
+  "output": "reports/jscpd"
+}

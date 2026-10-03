@@ -1,0 +1,5 @@
+# Real values belong only in ignored .dev.vars or environment-specific Worker secrets.
+# Never copy production credentials/data into local or preview.
+MICROSOFT_CLIENT_SECRET=""
+TOKEN_ENCRYPTION_KEY=""
+GOOGLE_SERVICE_ACCOUNT_JSON=""
