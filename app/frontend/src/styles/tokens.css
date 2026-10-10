@@ -47,6 +47,9 @@
     --qe-header-height: 3.5rem;
     --qe-sidebar-width: 15rem;
     --qe-sidebar-width-collapsed: 4rem;
+    --qe-nav-indicator-width: 3px;
+    --qe-panel-padding: 1.5rem;
+    --qe-section-gap: 2rem;
     --qe-content-max: 90rem;
     --qe-reading-max: 48rem;
     --qe-drawer-width: 36rem;
@@ -99,6 +102,7 @@
     --qe-color-primary-soft: #e6f0f7;
     --qe-color-on-primary: #ffffff;
     --qe-color-link: #2b5d86;
+    --qe-color-selected-fg: #315f86; /* Text, icons and indicators for selected states: 5.84:1 on primary-soft, 6.75:1 on surface. */
     --qe-color-focus: #4c83b6;
 
     --qe-color-success: #2f6b4f;
@@ -157,6 +161,7 @@
     --qe-color-primary-soft: #1c3448;
     --qe-color-on-primary: #ffffff;
     --qe-color-link: #8dbce1;
+    --qe-color-selected-fg: #8dbce1; /* Dark primary is only 2.46-3.16:1 on dark surfaces, so selected states use the link blue: 6.37:1 on primary-soft. */
     --qe-color-focus: #78aedd;
 
     --qe-color-success: #8dd3ad;
@@ -186,6 +191,10 @@
     --qe-shadow-overlay: 0 8px 24px rgb(0 0 0 / 40%);
     --qe-shadow-dialog: 0 16px 48px rgb(0 0 0 / 50%);
     color-scheme: dark;
+  }
+
+  @media (width < 40rem) {
+    :where(.qe-app) { --qe-panel-padding: 1rem; --qe-section-gap: 1.5rem; }
   }
 }
 

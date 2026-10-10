@@ -79,19 +79,23 @@ export function ApplicationsPage() {
       <a className="qe-button" data-variant="secondary" data-size="default" href={exportUrl()}>Export CSV</a>
     </>} />
     <div className="qe-stack" data-gap="3">
-      <form className="qe-toolbar" role="search" aria-label="Filter applications" onSubmit={(event) => event.preventDefault()}>
-        <SearchInput label="Search company or role" value={filters.q} onChange={(value) => update({ q: value }, { replace: true })} />
-        <Field label="Status">{(control) => <select {...control} className="qe-input" value={filters.status} onChange={(event) => update({ status: event.target.value })}><option value="">All statuses</option><StatusOptions /></select>}</Field>
-        <Field label="Source">{(control) => <select {...control} className="qe-input" value={filters.source} onChange={(event) => update({ source: event.target.value })}><option value="">All sources</option>{sourceOptions.map((value) => <option key={value} value={value}>{humanize(value)}</option>)}</select>}</Field>
-        <Field label="Reconciliation">{(control) => <select {...control} className="qe-input" value={filters.reconciliation} onChange={(event) => update({ reconciliation: event.target.value })}><option value="">All states</option>{reconciliationOptions.map((value) => <option key={value} value={value}>{humanize(value)}</option>)}</select>}</Field>
-        <Field label="Applied date">{(control) => <select {...control} className="qe-input" value={preset} onChange={(event) => choosePreset(event.target.value as DatePreset)}>{datePresets.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select>}</Field>
-        {preset === "custom" && <>
-          <Field label="Applied from">{(control) => <input {...control} className="qe-input" type="date" value={filters.from} max={filters.to || undefined} onChange={(event) => update({ from: event.target.value })} />}</Field>
-          <Field label="Applied through">{(control) => <input {...control} className="qe-input" type="date" value={filters.to} min={filters.from || undefined} onChange={(event) => update({ to: event.target.value })} />}</Field>
-        </>}
-        <Field label="Sort by">{(control) => <select {...control} className="qe-input" value={sort} onChange={(event) => update({ sort: event.target.value === "applied_desc" ? null : event.target.value })}>{applicationSorts.map((value) => <option key={value} value={value}>{sortLabels[value].option}</option>)}</select>}</Field>
+      <form className="qe-stack" data-gap="3" role="search" aria-label="Filter applications" onSubmit={(event) => event.preventDefault()}>
+        <div className="qe-toolbar" data-row="primary">
+          <SearchInput label="Search company or role" value={filters.q} onChange={(value) => update({ q: value }, { replace: true })} />
+          <Field label="Sort by">{(control) => <select {...control} className="qe-input" value={sort} onChange={(event) => update({ sort: event.target.value === "applied_desc" ? null : event.target.value })}>{applicationSorts.map((value) => <option key={value} value={value}>{sortLabels[value].option}</option>)}</select>}</Field>
+        </div>
+        <div className="qe-toolbar">
+          <Field label="Status">{(control) => <select {...control} className="qe-input" value={filters.status} onChange={(event) => update({ status: event.target.value })}><option value="">All statuses</option><StatusOptions /></select>}</Field>
+          <Field label="Source">{(control) => <select {...control} className="qe-input" value={filters.source} onChange={(event) => update({ source: event.target.value })}><option value="">All sources</option>{sourceOptions.map((value) => <option key={value} value={value}>{humanize(value)}</option>)}</select>}</Field>
+          <Field label="Reconciliation">{(control) => <select {...control} className="qe-input" value={filters.reconciliation} onChange={(event) => update({ reconciliation: event.target.value })}><option value="">All states</option>{reconciliationOptions.map((value) => <option key={value} value={value}>{humanize(value)}</option>)}</select>}</Field>
+          <Field label="Applied date">{(control) => <select {...control} className="qe-input" value={preset} onChange={(event) => choosePreset(event.target.value as DatePreset)}>{datePresets.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select>}</Field>
+          {preset === "custom" && <>
+            <Field label="Applied from">{(control) => <input {...control} className="qe-input" type="date" value={filters.from} max={filters.to || undefined} onChange={(event) => update({ from: event.target.value })} />}</Field>
+            <Field label="Applied through">{(control) => <input {...control} className="qe-input" type="date" value={filters.to} min={filters.from || undefined} onChange={(event) => update({ to: event.target.value })} />}</Field>
+          </>}
+        </div>
       </form>
-      {chips.length > 0 && <div className="qe-cluster" data-gap="2" role="group" aria-label="Active filters">
+      {chips.length > 0 && <div className="qe-cluster" data-gap="3" role="group" aria-label="Active filters">
         {chips.map((key) => <FilterChip key={key} label={chipLabels[key]} value={chipValue(key, filters[key])} onRemove={() => update({ [key]: null })} />)}
         <Button variant="quiet" size="compact" onClick={clearFilters}>Clear all filters</Button>
       </div>}
@@ -101,7 +105,7 @@ export function ApplicationsPage() {
       {list.error ? <ErrorAlert message={list.error} title="Applications could not be loaded" />
         : <DataTable caption="Applications" columns={columns} rows={list.data?.applications ?? []} rowKey={(row) => row.id} loading={!list.data} empty={empty} currentRowKey={appId || null}
           sort={sortStates[sort]} onSort={(key) => update({ sort: sortKeyOf[key] === "applied_desc" ? null : sortKeyOf[key] })}
-          action={{ header: "Actions", render: (row) => <Button size="compact" aria-label={`View ${row.company} ${row.role}`} onClick={() => update({ app: row.id }, { keepPage: true })}>View</Button> }} />}
+          action={{ header: "Actions", render: (row) => <Button variant="quiet" size="compact" aria-label={`View ${row.company} ${row.role}`} onClick={() => update({ app: row.id }, { keepPage: true })}>View</Button> }} />}
       {total > 0 && <Pagination page={page} pageSize={pageSize} total={total} pageSizes={[...pageSizes]} label="Applications pages"
         onPageChange={(next) => update({ page: next ? String(next) : null }, { keepPage: true })} onPageSizeChange={(size) => update({ pageSize: size === 25 ? null : String(size) })} />}
     </div>

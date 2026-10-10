@@ -1,13 +1,18 @@
+import { useEffect } from "react";
 import { render } from "@testing-library/react";
-import { MemoryRouter, useLocation } from "react-router-dom";
+import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { vi } from "vitest";
 import axe from "axe-core";
 import { App } from "../App";
 import { intelligenceApi } from "../lib/api";
 import { apiImplementation, makeState, type ApiState } from "./fixtures";
 
+// Memory history has no browser Back button, so tests call `history.back()`.
+export const history = { back: () => {} };
 function LocationProbe() {
   const { pathname, search } = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => { history.back = () => navigate(-1); }, [navigate]);
   return <output data-testid="location">{pathname}{search}</output>;
 }
 

@@ -4,7 +4,7 @@ import axe from "axe-core";
 import { useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  Alert, Button, DataTable, Drawer, EmptyState, Field, FilterChip, Kpi, Pagination, Panel, SearchIcon, SearchInput, Skeleton, StatusBadge, Tabs,
+  Alert, Button, DataTable, Drawer, EmptyState, Field, FilterChip, Kpi, Pagination, Panel, SearchIcon, SearchInput, SegmentedControl, Skeleton, StatusBadge, Tabs,
   describeStatus, humanize, type Column,
 } from ".";
 
@@ -246,6 +246,29 @@ describe("Tabs", () => {
     unmount();
     render(<Harness initial="missing" />);
     expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
+  });
+});
+
+describe("SegmentedControl", () => {
+  function Harness({ onChange = () => {} }: { onChange?: (value: string) => void }) {
+    const [value, setValue] = useState("chart");
+    return <SegmentedControl label="Display" value={value} onChange={(next) => { setValue(next); onChange(next); }}
+      options={[{ value: "chart", label: "Chart" }, { value: "table", label: "Table" }, { value: "map", label: <SearchIcon />, name: "Map view" }]} />;
+  }
+  it("marks only the current option as pressed and reports the chosen value", async () => {
+    const change = vi.fn();
+    render(<Harness onChange={change} />);
+    const group = within(screen.getByRole("group", { name: "Display" }));
+    expect(group.getAllByRole("button").map((button) => button.getAttribute("aria-pressed"))).toEqual(["true", "false", "false"]);
+    await userEvent.click(group.getByRole("button", { name: "Table" }));
+    expect(change).toHaveBeenCalledWith("table");
+    expect(group.getAllByRole("button").map((button) => button.getAttribute("aria-pressed"))).toEqual(["false", "true", "false"]);
+    expect(group.getByRole("button", { name: "Table" })).not.toHaveAttribute("title");
+  });
+  it("names an icon-only option and has no automated violations", async () => {
+    const { container } = render(<Harness />);
+    expect(screen.getByRole("button", { name: "Map view" })).toHaveAttribute("title", "Map view");
+    expect(await scan(container)).toEqual([]);
   });
 });
 

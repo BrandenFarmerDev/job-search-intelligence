@@ -9,6 +9,7 @@ export * from "./icons";
 export { Kpi, type KpiProps } from "./Kpi";
 export { Pagination, type PaginationProps } from "./Pagination";
 export { Panel, type PanelProps } from "./Panel";
+export { SegmentedControl, type SegmentedControlProps, type SegmentedOption } from "./SegmentedControl";
 export { SearchInput, type SearchInputProps } from "./SearchInput";
 export { Skeleton, type SkeletonProps } from "./Skeleton";
 export { StatusBadge, describeStatus, humanize, type StatusDescriptor, type Tone } from "./StatusBadge";

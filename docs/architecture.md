@@ -13,7 +13,7 @@ Pages and API hosts require owner-email-only Cloudflare Access. The Worker indep
 
 ## Frontend
 
-Routes (react-router, all under one shell with a skip link, sidebar navigation, mobile Menu toggle and a Theme control):
+Routes (react-router, all under one shell with a skip link, a collapsible icon-rail sidebar, a mobile Menu overlay and an icon-only Theme control):
 
 | Route | Page |
 | --- | --- |
@@ -27,9 +27,9 @@ The shell owns one dashboard provider (`lib/dashboard-context.tsx`): `/dashboard
 
 Applications state lives in the URL: `q`, `status`, `source`, `reconciliation`, `from`, `to`, `company`, `role`, `sort`, `page` (zero-based), `pageSize` (25 or 50) and `app` (open drawer). Changing a filter, sort or page size drops `page`; opening or closing the drawer only adds or removes `app`. The drawer loads `/applications/:id` itself, so a deep link works for any record, and closing it restores focus to the opener (or the `h1` for a deep link). Excluding an application uses an inline confirmation inside the drawer rather than a nested dialog. `ApplicationPicker` (merge target, review decisions) searches `/applications` independently of the list filters.
 
-Components: `components/ui` holds the design primitives (Button, Field, SearchInput, StatusBadge, Panel, Kpi, Alert, EmptyState, Skeleton, Tabs, Drawer on native `<dialog>`, DataTable, Pagination, FilterChip). `components/charts` holds hand-written SVG BarChart, ColumnChart and StageReach; each has a "View as table" alternative. There are no chart dependencies and no inline styles, because Pages sends `style-src 'self'`.
+Components: `components/ui` holds the design primitives (Button, Field, SearchInput, StatusBadge, Panel, Kpi, Alert, EmptyState, Skeleton, Tabs, Drawer on native `<dialog>`, DataTable, Pagination, FilterChip). `components/charts` holds hand-written SVG BarChart, ColumnChart and StageReach; each has a Chart | Table switch, and the table lists every value. There are no chart dependencies and no inline styles, because Pages sends `style-src 'self'`.
 
-Styling: semantic `--qe-*` tokens for light and dark in `styles/tokens.css`, ordered by CSS cascade layers in `styles/global.css`. The preference (System, Light, Dark) is stored in `localStorage` key `qe-theme`. `public/theme-init.js` is a same-origin script (inline scripts are blocked by the CSP) that sets `data-theme` on `<html>` before first paint; `lib/theme.ts` keeps it in sync and follows the system setting while System is selected.
+Styling: semantic `--qe-*` tokens for light and dark in `styles/tokens.css`, ordered by CSS cascade layers in `styles/global.css`. The preference (System, Light, Dark) is stored in `localStorage` key `qe-theme`. `public/theme-init.js` is a same-origin script (inline scripts are blocked by the CSP) that sets `data-theme` on `<html>` before first paint; `lib/theme.ts` keeps it in sync and follows the system setting while System is selected. The same script restores the sidebar state (`data-sidebar` on `<html>`, key `qe-sidebar`), which `lib/sidebar.ts` keeps in sync.
 
 API shapes added for this UI (`packages/shared`): `Dashboard` gained `outcomes` (applied, responses, screenings, interviews, offers, rejections and median response days per source/company/role), `weekly` (UTC Monday-start weekly counts), `medianFirstResponseDays` (nullable) and `lastSuccessfulSyncAt`. `GET /applications` accepts `pageSize` (25 or 50; 50 when absent), `sort` (`applied_desc`, `applied_asc`, `company`, `status`, `updated`; unknown values use `applied_desc`) and exact `company` and `role`, and returns `ApplicationListResponse`: `applications`, `page`, `pageSize`, `total` and `hasMore`.
 

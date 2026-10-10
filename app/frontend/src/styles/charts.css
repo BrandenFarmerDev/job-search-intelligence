@@ -1,6 +1,7 @@
 @layer qe-components {
   .qe-chart { display: flex; flex-direction: column; gap: var(--qe-space-3); min-inline-size: 0; }
-  .qe-chart-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--qe-space-2) var(--qe-space-4); }
+  .qe-chart-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--qe-space-2) var(--qe-space-4); }
+  .qe-chart-header > :first-child { min-inline-size: 0; }
   .qe-chart-title { font-size: var(--qe-font-size-md); font-weight: var(--qe-font-weight-semibold); }
   .qe-chart-description { color: var(--qe-color-text-secondary); font-size: var(--qe-font-size-sm); }
   .qe-chart-body { min-inline-size: 0; }

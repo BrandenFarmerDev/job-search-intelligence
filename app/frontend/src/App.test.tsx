@@ -2,9 +2,9 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { intelligenceApi } from "./lib/api";
-import { systemTheme } from "./test/media";
+import { systemTheme, viewport } from "./test/media";
 import { makeState } from "./test/fixtures";
-import { renderApp, violations } from "./test/render";
+import { history, renderApp, violations } from "./test/render";
 
 vi.mock("./lib/api", async (importOriginal) => ({ ...await importOriginal<typeof import("./lib/api")>(), intelligenceApi: vi.fn() }));
 
@@ -63,47 +63,134 @@ describe("navigation", () => {
     renderApp("/", state);
     expect(await nav().findByRole("link", { name: /^Review 100\+\s?records waiting$/ })).toBeInTheDocument();
   });
-  it("toggles the menu, closes it on navigation or Escape, and returns focus to the toggle", async () => {
+  it("opens the menu as a modal overlay, keeps focus inside it and closes it from the scrim, Close, Escape or a link", async () => {
     renderApp("/");
     const toggle = screen.getByRole("button", { name: "Menu" });
+    const panel = screen.getByRole("navigation", { name: "Primary navigation" });
+    const page = () => [document.querySelector(".qe-shell-header"), screen.getByRole("main"), screen.getByRole("contentinfo")];
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByRole("navigation", { name: "Primary navigation" })).toHaveAttribute("data-open", "false");
+    expect(panel).toHaveAttribute("data-open", "false");
+    const scrim = () => document.querySelector(".qe-scrim");
+    expect(scrim()).not.toBeInTheDocument();
+    for (const region of page()) expect(region).not.toHaveAttribute("inert");
 
-    await userEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("navigation", { name: "Primary navigation" })).toHaveAttribute("data-open", "true");
+    const open = async () => {
+      await userEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      expect(panel).toHaveAttribute("data-open", "true");
+      expect(nav().getByRole("link", { name: "Overview" })).toHaveFocus();
+      for (const region of page()) expect(region).toHaveAttribute("inert");
+    };
+    const closed = () => {
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(toggle).toHaveFocus();
+      for (const region of page()) expect(region).not.toHaveAttribute("inert");
+    };
+
+    await open();
+    // The scrim is a mouse-only dismissal, hidden from assistive technology; Close and Escape serve keyboards.
+    expect(scrim()).toHaveAttribute("aria-hidden", "true");
+    await userEvent.click(scrim()!);
+    closed();
+    await open();
+    await userEvent.click(nav().getByRole("button", { name: "Close" }));
+    closed();
+    await open();
     await userEvent.keyboard("{Escape}");
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(toggle).toHaveFocus();
+    closed();
+    await open();
+    await userEvent.click(nav().getByRole("link", { name: "Overview" }));
+    closed();
 
-    await userEvent.click(toggle);
+    await open();
     await userEvent.click(nav().getByRole("link", { name: /^Review/ }));
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await userEvent.click(toggle);
-    await userEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(await screen.findByRole("heading", { level: 1, name: "Review" })).toHaveFocus();
+    for (const region of page()) expect(region).not.toHaveAttribute("inert");
+  });
+  it("closes the open overlay when browser Back changes the route, so it cannot reopen later", async () => {
+    renderApp("/");
+    const panel = screen.getByRole("navigation", { name: "Primary navigation" });
+    await userEvent.click(nav().getByRole("link", { name: "Applications" }));
+    await screen.findByRole("heading", { level: 1, name: "Applications" });
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    expect(panel).toHaveAttribute("data-open", "true");
+    act(() => history.back());
+    await screen.findByRole("heading", { level: 1, name: "Overview" });
+    expect(panel).toHaveAttribute("data-open", "false");
+    expect(screen.getByRole("button", { name: "Menu" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("main")).not.toHaveAttribute("inert");
+  });
+  it("focuses the current page's link when the overlay opens", async () => {
+    renderApp("/applications");
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    expect(nav().getByRole("link", { name: "Applications" })).toHaveFocus();
+  });
+  it("closes the overlay when the window widens to the desktop layout and moves focus to the page", async () => {
+    renderApp("/");
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    expect(screen.getByRole("main")).toHaveAttribute("inert");
+    // jsdom has no layout, so report the Menu button as hidden the way the desktop CSS does.
+    HTMLElement.prototype.checkVisibility = () => false;
+    try { act(() => viewport.change(true)); } finally { delete (HTMLElement.prototype as Partial<HTMLElement>).checkVisibility; }
+    expect(screen.getByRole("main")).not.toHaveAttribute("inert");
+    expect(screen.getByRole("button", { name: "Menu" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("main")).toHaveFocus();
+  });
+  it("collapses to an icon rail that keeps link names, and remembers the choice", async () => {
+    renderApp("/");
+    const root = document.documentElement;
+    expect(root.dataset.sidebar).toBe("expanded");
+    expect(nav().getByRole("link", { name: "Overview" })).not.toHaveAttribute("title");
+
+    const panelToggle = screen.getByRole("button", { name: "Navigation panel" });
+    expect(panelToggle).toHaveAttribute("aria-expanded", "true");
+    expect(panelToggle).toHaveAttribute("title", "Collapse navigation");
+    await userEvent.click(panelToggle);
+    expect(panelToggle).toHaveAttribute("aria-expanded", "false");
+    expect(panelToggle).toHaveAttribute("title", "Expand navigation");
+    expect(panelToggle).toHaveAttribute("aria-controls", "primary-navigation");
+    expect(root.dataset.sidebar).toBe("collapsed");
+    expect(window.localStorage.getItem("qe-sidebar")).toBe("collapsed");
+    expect(nav().getByRole("link", { name: "Overview" })).toHaveAttribute("title", "Overview");
+    expect(nav().getByRole("link", { name: /^Review 1\s?records waiting$/ })).toBeInTheDocument();
+
+    await userEvent.click(panelToggle);
+    expect(root.dataset.sidebar).toBe("expanded");
+    expect(panelToggle).toHaveAttribute("aria-expanded", "true");
+  });
+  it("starts collapsed from a stored preference", () => {
+    window.localStorage.setItem("qe-sidebar", "collapsed");
+    renderApp("/");
+    expect(screen.getByRole("button", { name: "Navigation panel" })).toHaveAttribute("aria-expanded", "false");
+    expect(document.documentElement.dataset.sidebar).toBe("collapsed");
   });
 });
 
 describe("theme control", () => {
+  const choice = (name: string) => within(screen.getByRole("group", { name: "Theme" })).getByRole("button", { name });
   it("applies and stores the chosen theme, and follows the system while set to System", async () => {
     renderApp("/");
-    const select = screen.getByLabelText("Theme");
     expect(document.documentElement.dataset.theme).toBe("light");
+    expect(choice("System theme")).toHaveAttribute("aria-pressed", "true");
 
-    await userEvent.selectOptions(select, "dark");
+    await userEvent.click(choice("Dark theme"));
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(window.localStorage.getItem("qe-theme")).toBe("dark");
+    expect(choice("Dark theme")).toHaveAttribute("aria-pressed", "true");
+    expect(choice("System theme")).toHaveAttribute("aria-pressed", "false");
 
-    await userEvent.selectOptions(select, "system");
+    await userEvent.click(choice("System theme"));
     expect(document.documentElement.dataset.theme).toBe("light");
     act(() => systemTheme.change(true));
     expect(document.documentElement.dataset.theme).toBe("dark");
+    await userEvent.click(choice("Light theme"));
+    expect(document.documentElement.dataset.theme).toBe("light");
   });
   it("starts from a stored preference", () => {
     window.localStorage.setItem("qe-theme", "dark");
     renderApp("/");
-    expect(screen.getByLabelText("Theme")).toHaveValue("dark");
+    expect(choice("Dark theme")).toHaveAttribute("aria-pressed", "true");
     expect(document.documentElement.dataset.theme).toBe("dark");
   });
 });
