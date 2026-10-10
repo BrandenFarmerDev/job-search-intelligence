@@ -8,7 +8,7 @@ import { dateValue } from "./sheets";
 import type { SourceRecord } from "@job-search/shared";
 
 const record:SourceRecord={id:"row",company:"SyntheticCo",role:"Engineer",requisitionId:"QA-1",url:"",appliedAt:"2026-09-30",conversationId:"",applicationId:"",source:"sheet",status:"application_submitted"};
-function call(env:Env,path:string,method:string,body:object) { return intelligenceRoute(new Request(`https://api.example/api/job-intelligence${path}`,{method,headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}),env,"owner"); }
+function call(env:Env,path:string,method:string,body:object) { return intelligenceRoute(new Request(`https://api.example/api/job-intelligence${path}`,{method,headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}),env,{kind:"owner",id:"owner"}); }
 it("keeps application exclusions durable after source changes and reprocessing",async()=>{
  const {env,db,close}=fixture();await reconcile(db,record,1,false);const app=(await db.prepare("SELECT id FROM applications").first<{id:string}>())!;
  await call(env,`/applications/${app.id}`,"PATCH",{excluded:true});await reconcile(db,{...record,status:"offer"},1,false);

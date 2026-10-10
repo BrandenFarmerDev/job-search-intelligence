@@ -9,12 +9,24 @@ describe("private boundary security",()=>{
     vi.stubGlobal("fetch",vi.fn().mockResolvedValue(Response.json({keys:[jwk]})));
     const token=async(overrides:Record<string,unknown>={})=>new SignJWT({email:env.OWNER_EMAIL,...overrides}).setSubject("owner-id").setIssuedAt().setExpirationTime("1h").setAudience(env.ACCESS_AUD).setIssuer(`https://${env.ACCESS_TEAM_DOMAIN}`).setProtectedHeader({alg:"RS256",kid:"owner"}).sign(privateKey);
     const request=(value:string)=>new Request("https://api.example.com",{headers:{"Cf-Access-Jwt-Assertion":value}});
-    expect(await authorize(request(await token()),env)).toBe("owner-id");
+    expect(await authorize(request(await token()),env)).toEqual({kind:"owner",id:"owner-id"});
     await expect(authorize(request(await token({email:"attacker@example.com"})),env)).rejects.toMatchObject({status:401});
     for(const bad of ["invalid",await new SignJWT({email:env.OWNER_EMAIL}).setSubject("x").setExpirationTime(1).setAudience("wrong").setIssuer("wrong").setProtectedHeader({alg:"RS256",kid:"owner"}).sign(privateKey)])await expect(authorize(request(bad),env)).rejects.toMatchObject({status:401});
     await expect(authorize(new Request("https://api.example.com"),env)).rejects.toMatchObject({status:401});
     await expect(authorize(request("x"),{...env,ACCESS_AUD:""})).rejects.toMatchObject({status:401});
     await expect(authorize(request("x"),{...env,ACCESS_TEAM_DOMAIN:"evil.example"})).rejects.toMatchObject({status:503});close();
+  });
+  it("accepts Access service tokens only for the configured automation client",async()=>{
+    const {env:base,close}=fixture();const env={...base,ACCESS_TEAM_DOMAIN:"automation-test.cloudflareaccess.com"};// the JWKS cache is keyed by issuer
+    const {publicKey,privateKey}=await generateKeyPair("RS256");const jwk=await exportJWK(publicKey);jwk.kid="k";
+    vi.stubGlobal("fetch",vi.fn().mockResolvedValue(Response.json({keys:[jwk]})));
+    const sign=(claims:Record<string,unknown>,sub="")=>new SignJWT(claims).setSubject(sub).setIssuedAt().setExpirationTime("1h").setAudience(env.ACCESS_AUD).setIssuer(`https://${env.ACCESS_TEAM_DOMAIN}`).setProtectedHeader({alg:"RS256",kid:"k"}).sign(privateKey);
+    const run=async(claims:Record<string,unknown>,sub?:string,configured="client-id")=>authorize(new Request("https://api.example.com",{headers:{"Cf-Access-Jwt-Assertion":await sign(claims,sub)}}),{...env,AUTOMATION_CLIENT_ID:configured});
+    const service={common_name:"client-id",type:"app"};
+    expect(await run(service)).toEqual({kind:"automation",id:"automation"});
+    const rejected=[()=>run({...service,common_name:"other"}),()=>run(service,undefined,""),()=>run({...service,email:"anyone@example.com"}),()=>run({...service,email:env.OWNER_EMAIL}),()=>run(service,"user-id"),()=>run({...service,type:"user"}),()=>run({common_name:"client-id"}),()=>run({email:env.OWNER_EMAIL}),()=>run({email:"other@example.com"},"user-id"),()=>run({email:env.OWNER_EMAIL,common_name:"client-id"},"")];
+    for(const attempt of rejected)await expect(attempt()).rejects.toMatchObject({status:401,code:"authentication_required"});
+    await expect(authorize(new Request("https://api.example.com",{headers:{"Cf-Access-Jwt-Assertion":await sign(service)}}),env)).rejects.toMatchObject({status:401});close();
   });
   it("encrypts authenticated envelopes with a unique IV and context binding",async()=>{
     const {env,close}=fixture();const a=await encrypt("refresh-token",env.TOKEN_ENCRYPTION_KEY,"account:a");const b=await encrypt("refresh-token",env.TOKEN_ENCRYPTION_KEY,"account:a");

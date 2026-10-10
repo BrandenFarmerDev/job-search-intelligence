@@ -4,9 +4,10 @@ import { fixture } from "../test/fixtures";
 import { analytics, csv } from "../services/dashboard";
 import { reconcile } from "../services/reconciliation";
 import type { ApplicationRecord } from "@job-search/shared";
+import type { Principal } from "../services/security";
 afterEach(()=>vi.restoreAllMocks());
-function caller(env:Env) {
- return (path:string,method="GET",body?:object)=>intelligenceRoute(new Request(`https://api.example.com/api/job-intelligence${path}`,{method,headers:body?{"Content-Type":"application/json"}:{},body:body?JSON.stringify(body):undefined}),env,"owner-sub");
+function caller(env:Env,principal:Principal={kind:"owner",id:"owner-sub"}) {
+ return (path:string,method="GET",body?:object)=>intelligenceRoute(new Request(`https://api.example.com/api/job-intelligence${path}`,{method,headers:body?{"Content-Type":"application/json"}:{},body:body?JSON.stringify(body):undefined}),env,principal);
 }
 const manual={company:"ExampleCo",role:"Engineer",applied_at:"2026-09-01",status:"application_submitted"};
 it("creates auditable owner records, searches/filters/pages safely, exports and exposes evidence",async()=>{
@@ -60,6 +61,15 @@ it("accepts only bounded local Outlook import batches",async()=>{
  const {env,db,close}=fixture();const call=caller(env);const body={format:"job-search-intelligence.outlook-com.v1",accountId:"a".repeat(64),exportedAt:"2026-10-01T00:00:00Z",since:"2026-09-30T07:00:00Z",summary:{truncated:false},messages:[{immutableId:"b".repeat(64),folder:"sentitems",subject:"Follow up",sender:env.OWNER_EMAIL,excerpt:"Checking in",occurredAt:"2026-10-01T00:00:00Z",conversationId:"c",internetMessageId:"<m@example.com>",revision:"r"}]};
  expect(await (await call("/local-outlook/import","POST",body)).json()).toEqual({imported:1});expect((await (await call("/dashboard")).json() as {connections:{localOutlook:boolean}}).connections.localOutlook).toBe(true);
  expect((await db.prepare("SELECT folder FROM message_folders").first())?.folder).toBe("sentitems");await expect(call("/local-outlook/import","POST",{...body,accountId:"bad"})).rejects.toMatchObject({status:400});close();
+});
+it("lets automation import and queue syncs without ever resuming paused imports",async()=>{
+ const {env,db,close}=fixture();const owner=caller(env);const auto=caller(env,{kind:"automation",id:"automation"});const body={format:"job-search-intelligence.outlook-com.v1",accountId:"a".repeat(64),exportedAt:"2026-10-02T00:00:00Z",since:"2026-09-30T07:00:00Z",summary:{truncated:false},messages:[]};
+ const meta=async(key:string)=>(await db.prepare("SELECT value FROM app_metadata WHERE key=?").bind(key).first<{value:string}>())?.value;
+ expect(await (await auto("/local-outlook/import","POST",body)).json()).toEqual({imported:0});expect(await meta("local_outlook_last_automated_import")).toBe("2026-10-02T00:00:00.000Z");expect((await (await auto("/dashboard")).json() as {localOutlookLastAutomatedAt:string}).localOutlookLastAutomatedAt).toBe("2026-10-02T00:00:00.000Z");
+ expect((await auto("/sync/run","POST")).status).toBe(202);expect(env.JOB_SYNC.create).toHaveBeenLastCalledWith({params:{trigger:"automation"}});expect((await owner("/sync/run","POST")).status).toBe(202);expect(env.JOB_SYNC.create).toHaveBeenLastCalledWith({params:{trigger:"manual"}});
+ await owner("/applications","POST",manual);await owner("/data","DELETE",{confirmation:"DELETE ALL JOB DATA"});expect(await meta("local_outlook_last_automated_import")).toBeUndefined();
+ await expect(auto("/local-outlook/import","POST",body)).rejects.toMatchObject({status:409,code:"reconnect_sources_to_resume"});expect(await meta("sync_paused")).toBe("true");expect(await meta("local_outlook_last_automated_import")).toBeUndefined();
+ await owner("/local-outlook/import","POST",body);expect(await meta("sync_paused")).toBe("false");expect(await meta("local_outlook_last_automated_import")).toBeUndefined();close();
 });
 it("rejects capped local Outlook exports instead of treating partial history as complete",async()=>{
  const {env,close}=fixture();const call=caller(env);const body={format:"job-search-intelligence.outlook-com.v1",accountId:"a".repeat(64),exportedAt:"2026-10-01T00:00:00Z",since:"2026-09-30T07:00:00Z",summary:{truncated:true},messages:[]};

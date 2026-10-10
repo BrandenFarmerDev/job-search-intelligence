@@ -53,10 +53,12 @@ export function parseLocalOutlookBatch(value: Record<string, unknown>, historica
   });
   return { format, accountId: String(value.accountId), exportedAt, since, summary: { truncated: false }, messages };
 }
-export async function ingestLocalOutlookBatch(env: Env, value: Record<string, unknown>): Promise<{imported:number}> {
+export async function ingestLocalOutlookBatch(env: Env, value: Record<string, unknown>, automated = false): Promise<{imported:number}> {
   const batch = parseLocalOutlookBatch(value, env.HISTORICAL_START_DATE); const now = new Date().toISOString();
   const graph = await env.JOB_SEARCH_DB.prepare("SELECT 1 AS connected FROM connections WHERE provider='microsoft'").first();
   if (env.MICROSOFT_GRAPH_ENABLED === "true" && graph) throw new Problem(409, "graph_is_authoritative");
+  // Automation never reconnects: after typed deletion only an owner action may resume imports.
+  if (automated && (await env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='sync_paused'").first<{value:string}>())?.value === "true") throw new Problem(409, "reconnect_sources_to_resume");
   const account = `outlook-local:${batch.accountId}`; const statements: D1PreparedStatement[] = [];
   for (const message of batch.messages) {
     const id = await emailReferenceId(account,message.immutableId,message.internetMessageId,message);
@@ -68,7 +70,8 @@ export async function ingestLocalOutlookBatch(env: Env, value: Record<string, un
     statements.push(env.JOB_SEARCH_DB.prepare("INSERT OR IGNORE INTO message_folders VALUES(?,?)").bind(id,message.folder));
   }
   statements.push(env.JOB_SEARCH_DB.prepare("INSERT INTO app_metadata VALUES('local_outlook_last_import',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(batch.exportedAt));
-  statements.push(env.JOB_SEARCH_DB.prepare("INSERT INTO app_metadata VALUES('sync_paused','false') ON CONFLICT(key) DO UPDATE SET value='false'"));
+  if (automated) statements.push(env.JOB_SEARCH_DB.prepare("INSERT INTO app_metadata VALUES('local_outlook_last_automated_import',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(batch.exportedAt));
+  else statements.push(env.JOB_SEARCH_DB.prepare("INSERT INTO app_metadata VALUES('sync_paused','false') ON CONFLICT(key) DO UPDATE SET value='false'"));
   statements.push(env.JOB_SEARCH_DB.prepare("INSERT INTO sync_state VALUES('outlook_local',?,?,?) ON CONFLICT(provider,scope) DO UPDATE SET cursor=excluded.cursor,updated_at=excluded.updated_at").bind(batch.accountId,batch.exportedAt,now));
   await env.JOB_SEARCH_DB.batch(statements);
   return { imported: batch.messages.length };
