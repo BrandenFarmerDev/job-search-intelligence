@@ -48,11 +48,11 @@ describe("Overview charts", () => {
     expect(screen.getByRole("heading", { level: 3, name: "Reconciliation state" })).toBeInTheDocument();
 
     const status = screen.getByRole("region", { name: "Status distribution" });
-    await userEvent.click(within(status).getByRole("button", { name: "View as table" }));
+    await userEvent.click(within(status).getByRole("button", { name: "Table" }));
     const table = within(status).getByRole("table", { name: "Status distribution: values" });
     expect(within(table).getByText("Application submitted")).toBeInTheDocument();
     expect(within(table).getByText("Rejection")).toBeInTheDocument();
-    await userEvent.click(within(status).getByRole("button", { name: "View as chart" }));
+    await userEvent.click(within(status).getByRole("button", { name: "Chart" }));
     expect(within(status).queryByRole("table")).not.toBeInTheDocument();
   });
 });
@@ -142,7 +142,7 @@ describe("Overview states", () => {
   it("has no automated accessibility violations when insights and charts are shown as tables", async () => {
     const { container } = renderApp("/");
     await screen.findByRole("region", { name: "Insights" });
-    for (const toggle of screen.getAllByRole("button", { name: "View as table" })) await userEvent.click(toggle);
+    for (const toggle of screen.getAllByRole("button", { name: "Table" })) await userEvent.click(toggle);
     expect(await violations(container)).toEqual([]);
   });
 });

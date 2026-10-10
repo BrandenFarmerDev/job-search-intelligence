@@ -37,7 +37,7 @@ export function BarChart({ title, description, items, unit = "application", seri
   const barMax = Math.max(40, width - labelWidth - valueWidth - GAP);
   const leader = ordered.reduce((best, item) => item.value > best.value ? item : best, ordered[0] ?? { label: "", value: 0 });
   return <ChartFrame title={title} description={description} headingLevel={headingLevel} emptyDescription={emptyDescription}
-    summary={`Horizontal bar chart of ${ordered.length} categories; the largest is ${leader.label} with ${countOf(leader.value, unit)}. Use View as table for every value.`}
+    summary={`Horizontal bar chart of ${ordered.length} categories; the largest is ${leader.label} with ${countOf(leader.value, unit)}. Choose Table for every value.`}
     table={{ columns: [{ header: categoryHeader }, { header: `${unit[0].toUpperCase()}${unit.slice(1)}s`, numeric: true }, ...(showShare ? [{ header: "Share of all applications", numeric: true }] : [])],
       rows: ordered.map((item) => [item.label, item.value, ...(showShare ? [`${share(item.value)}%`] : [])]) }}>
     {({ titleId, summaryId }) => <div ref={measure}>

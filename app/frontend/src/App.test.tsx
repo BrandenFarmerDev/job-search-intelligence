@@ -139,24 +139,29 @@ describe("navigation", () => {
 });
 
 describe("theme control", () => {
+  const choice = (name: string) => within(screen.getByRole("group", { name: "Theme" })).getByRole("button", { name });
   it("applies and stores the chosen theme, and follows the system while set to System", async () => {
     renderApp("/");
-    const select = screen.getByLabelText("Theme");
     expect(document.documentElement.dataset.theme).toBe("light");
+    expect(choice("System theme")).toHaveAttribute("aria-pressed", "true");
 
-    await userEvent.selectOptions(select, "dark");
+    await userEvent.click(choice("Dark theme"));
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(window.localStorage.getItem("qe-theme")).toBe("dark");
+    expect(choice("Dark theme")).toHaveAttribute("aria-pressed", "true");
+    expect(choice("System theme")).toHaveAttribute("aria-pressed", "false");
 
-    await userEvent.selectOptions(select, "system");
+    await userEvent.click(choice("System theme"));
     expect(document.documentElement.dataset.theme).toBe("light");
     act(() => systemTheme.change(true));
     expect(document.documentElement.dataset.theme).toBe("dark");
+    await userEvent.click(choice("Light theme"));
+    expect(document.documentElement.dataset.theme).toBe("light");
   });
   it("starts from a stored preference", () => {
     window.localStorage.setItem("qe-theme", "dark");
     renderApp("/");
-    expect(screen.getByLabelText("Theme")).toHaveValue("dark");
+    expect(choice("Dark theme")).toHaveAttribute("aria-pressed", "true");
     expect(document.documentElement.dataset.theme).toBe("dark");
   });
 });

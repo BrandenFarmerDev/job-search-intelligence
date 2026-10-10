@@ -6,14 +6,16 @@ import { freshnessText } from "../lib/format";
 import { useSidebar } from "../lib/sidebar";
 import { useTheme, type ThemePreference } from "../lib/theme";
 import { ErrorAlert } from "./ErrorAlert";
-import { Alert, BriefcaseIcon, Button, CloseIcon, DatabaseIcon, GridIcon, InboxIcon, InfoIcon, MenuIcon, PanelCloseIcon, PanelOpenIcon } from "./ui";
+import { Alert, BriefcaseIcon, Button, CloseIcon, DatabaseIcon, GridIcon, InboxIcon, InfoIcon, MenuIcon, MonitorIcon, MoonIcon, PanelCloseIcon, PanelOpenIcon, SegmentedControl, SunIcon, type SegmentedOption } from "./ui";
 
 const navItems = [
   { to: "/", label: "Overview", end: true, Icon: GridIcon }, { to: "/applications", label: "Applications", Icon: BriefcaseIcon }, { to: "/review", label: "Review", Icon: InboxIcon },
   { to: "/sources", label: "Sources & privacy", Icon: DatabaseIcon }, { to: "/about", label: "About", Icon: InfoIcon },
 ];
 const WIDE = "(width >= 64rem)";
-const themes: { value: ThemePreference; label: string }[] = [{ value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }];
+const themes: SegmentedOption<ThemePreference>[] = [
+  { value: "system", label: <MonitorIcon />, name: "System theme" }, { value: "light", label: <SunIcon />, name: "Light theme" }, { value: "dark", label: <MoonIcon />, name: "Dark theme" },
+];
 
 export function Layout() {
   return <DashboardProvider><Shell /></DashboardProvider>;
@@ -63,12 +65,7 @@ function Shell() {
         <Link className="qe-brand" to="/">Job Search Intelligence</Link>
         <div className="qe-shell-actions">
           <p className="qe-freshness">{freshnessText(dashboard?.lastSuccessfulSyncAt)}</p>
-          <div className="qe-theme">
-            <label className="qe-label" htmlFor="theme-preference">Theme</label>
-            <select id="theme-preference" className="qe-input" value={preference} onChange={(event) => setPreference(event.target.value as ThemePreference)}>
-              {themes.map((theme) => <option key={theme.value} value={theme.value}>{theme.label}</option>)}
-            </select>
-          </div>
+          <SegmentedControl label="Theme" options={themes} value={preference} onChange={setPreference} iconOnly />
         </div>
       </header>
       {menuOpen && <button type="button" className="qe-scrim" aria-label="Close navigation" tabIndex={-1} onClick={closeMenu} />}

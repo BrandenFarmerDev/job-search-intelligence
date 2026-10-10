@@ -51,21 +51,23 @@ describe("BarChart", () => {
   });
   it("toggles to a table that lists every category, not just the grouped ones", async () => {
     render(<BarChart title="By source" items={items} />);
-    const toggle = screen.getByRole("button", { name: "View as table" });
-    expect(toggle).toHaveAttribute("aria-pressed", "false");
-    await userEvent.click(toggle);
-    expect(screen.getByRole("button", { name: "View as chart" })).toHaveAttribute("aria-pressed", "true");
+    const view = within(screen.getByRole("group", { name: "By source view" }));
+    expect(view.getByRole("button", { name: "Chart" })).toHaveAttribute("aria-pressed", "true");
+    expect(view.getByRole("button", { name: "Table" })).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(view.getByRole("button", { name: "Table" }));
+    expect(view.getByRole("button", { name: "Table" })).toHaveAttribute("aria-pressed", "true");
+    expect(view.getByRole("button", { name: "Chart" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("table", { name: "By source: values" })).toBeInTheDocument();
     expect(screen.getAllByRole("row")).toHaveLength(12);
     expect(screen.getByRole("columnheader", { name: "Applications" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "View as chart" }));
+    await userEvent.click(screen.getByRole("button", { name: "Chart" }));
     expect(screen.getByRole("img")).toBeInTheDocument();
   });
   it("can show each value as a share of a fixed maximum", async () => {
     const { container } = render(<BarChart title="Share" items={[{ label: "Responded", value: 1 }, { label: "Offers", value: 0 }]} max={4} showShare unit="response" categoryHeader="Stage" />);
     expect(screen.getByText("1 · 25%")).toBeInTheDocument();
     expect(container.querySelectorAll(".qe-chart-track")).toHaveLength(2);
-    await userEvent.click(screen.getByRole("button", { name: "View as table" }));
+    await userEvent.click(screen.getByRole("button", { name: "Table" }));
     expect(screen.getByRole("columnheader", { name: "Share of all applications" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Stage" })).toBeInTheDocument();
     expect(screen.getByText("25%")).toBeInTheDocument();
@@ -79,7 +81,7 @@ describe("BarChart", () => {
     render(<BarChart title="Nothing" items={[]} emptyDescription="Import applications first." />);
     expect(screen.getByText("No data yet")).toBeInTheDocument();
     expect(screen.getByText("Import applications first.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "View as table" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Table" })).not.toBeInTheDocument();
   });
   it("redraws at its measured width and truncates long labels to fit", () => {
     const resize = stubWidth(320);
@@ -113,7 +115,7 @@ describe("ColumnChart", () => {
   });
   it("offers every week in the table view and an empty state when nothing was applied", async () => {
     const { unmount } = render(<ColumnChart title="Weekly" weeks={weeks} />);
-    await userEvent.click(screen.getByRole("button", { name: "View as table" }));
+    await userEvent.click(screen.getByRole("button", { name: "Table" }));
     expect(screen.getAllByRole("row")).toHaveLength(27);
     expect(screen.getByRole("columnheader", { name: "Week starting" })).toBeInTheDocument();
     unmount();
@@ -134,7 +136,7 @@ describe("StageReach", () => {
     expect(screen.getByText("Applied")).toBeInTheDocument();
     expect(screen.getByText("40 · 100%")).toBeInTheDocument();
     expect(screen.getByText("12 · 30%")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "View as table" }));
+    await userEvent.click(screen.getByRole("button", { name: "Table" }));
     expect(screen.getAllByRole("row").slice(1).map((row) => row.textContent)).toEqual(["Applied40100%", "Responded1025%", "Screening410%", "Interview1230%", "Offer13%"]);
   });
   it("shows an empty state before any application exists", () => {
@@ -147,7 +149,7 @@ describe("ChartFrame", () => {
   it("keeps the hidden summary available to assistive technology only while the chart shows", async () => {
     render(<ChartFrame title="Custom" summary="Plain-language reading" table={{ columns: [{ header: "Name" }, { header: "Value", numeric: true }], rows: [["a", 1]] }}>{({ titleId, summaryId }) => <svg role="img" aria-labelledby={titleId} aria-describedby={summaryId} />}</ChartFrame>);
     expect(screen.getByRole("img", { name: "Custom" })).toHaveAccessibleDescription("Plain-language reading");
-    await userEvent.click(screen.getByRole("button", { name: "View as table" }));
+    await userEvent.click(screen.getByRole("button", { name: "Table" }));
     expect(screen.queryByText("Plain-language reading")).not.toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "1" })).toHaveAttribute("data-align", "end");
   });
@@ -159,7 +161,7 @@ describe("accessibility", () => {
       <BarChart title="Sources" items={items} headingLevel={3} /><ColumnChart title="Weekly" weeks={weeks} headingLevel={3} /><StageReach total={10} responses={5} screenings={2} interviews={1} offers={0} headingLevel={3} />
     </main>);
     expect(await scan(container)).toEqual([]);
-    for (const toggle of screen.getAllByRole("button", { name: "View as table" })) await userEvent.click(toggle);
+    for (const toggle of screen.getAllByRole("button", { name: "Table" })) await userEvent.click(toggle);
     expect(await scan(container)).toEqual([]);
   });
 });

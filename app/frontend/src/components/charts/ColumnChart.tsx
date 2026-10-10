@@ -18,7 +18,7 @@ export function ColumnChart({ title, description, weeks, unit = "application", h
   const total = weeks.reduce((sum, week) => sum + week.count, 0);
   const wording = (week: { weekStart: string; count: number }) => `Week of ${formatWeek(week.weekStart)}: ${countOf(week.count, unit)}`;
   return <ChartFrame title={title} description={description} headingLevel={headingLevel} emptyDescription={emptyDescription}
-    summary={`Column chart of ${countOf(total, unit)} over ${weeks.length} weeks; the busiest week had ${peak}. Use View as table for every week.`}
+    summary={`Column chart of ${countOf(total, unit)} over ${weeks.length} weeks; the busiest week had ${peak}. Choose Table for every week.`}
     table={{ columns: [{ header: "Week starting" }, { header: `${unit[0].toUpperCase()}${unit.slice(1)}s`, numeric: true }], rows: hasData ? weeks.map((week) => [week.weekStart, week.count]) : [] }}>
     {({ titleId, summaryId }) => <div ref={measure}>
       <svg className="qe-chart-svg" role="img" aria-labelledby={titleId} aria-describedby={summaryId} width={width} height={HEIGHT} viewBox={`0 0 ${width} ${HEIGHT}`}>
