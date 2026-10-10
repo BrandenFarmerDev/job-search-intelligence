@@ -68,3 +68,19 @@ Production Worker `f143dd81-7865-45a2-81ff-9f44cb79d46a`, Pages `e04e088b`; prev
 Authenticated production About reports API connected and the final dashboard loads 16 applications; read-only D1 count remained 16 before/after deployment. Inspected application console has no warnings/errors. Logs confirm SYNC_ENABLED=false, AI_ENABLED=false, AI_DAILY_CALL_LIMIT=0 and MICROSOFT_GRAPH_ENABLED=false. Preview environment requires owner approval with administrator bypass disabled; its waiting job was released only after checking reviewed commit `db60be7`. The token still has account-wide resource-type permissions, so every future preview approval must review the exact ref/commit.
 
 Limits: live permanent preview deletion remains consent-pending; its automated regressions pass. Production uncertainty review is owner work. Future Graph and optional free-only AI activation require separate acceptance; no paid AI or email sending is enabled.
+
+## Outlook upload automation — October 10, 2026
+
+Branch `bfarmer/outlook-automation`. The owner approved the scheduled local import, merge, production deployment and live acceptance with real Outlook mail in production on this date; unit and integration tests stay synthetic. `SYNC_ENABLED` remains false.
+
+Automated verification (`npm run quality`, all steps exit 0): lint with zero warnings; PowerShell check (Windows PowerShell 5.1 parse of all `scripts/*.ps1` plus the `outlook-automation.ps1 -SelfTest`); backend 100 tests at 99.25% statements, 96.74% branches, 100% functions, 100% lines; frontend 231 tests at 99.27%, 94.30%, 98.77%, 99.48%; shared 12 tests at 100%; deployment guard 18 tests at 100%; jscpd 0 clones (0.00% of 3,608 lines); fresh Worker types; typecheck; builds; local migrations; audit with 0 vulnerabilities. Preview and production Worker dry-run builds pass.
+
+Behaviour tests added:
+
+- Real `authorize` with a generated RS256 key and stubbed JWKS: owner accepted; service token accepted only with a matching configured client ID, empty `sub`, no `email` and `type` `app`; mismatched ID, unset secret, `email` mixed with `common_name`, non-empty `sub`, wrong `type` and non-owner emails give 401.
+- Index boundary (`boundary.test.ts`): automation passes on exactly the three allowlisted method/path pairs and gets 403 `automation_route_forbidden` for near misses (trailing slash, wrong method, suffix paths, other routes); automation with any `Origin` is 403; an owner mutation without `Origin` is still 403 `origin_required`.
+- Route behaviour: automated import records `local_outlook_last_automated_import`, is rejected with 409 while paused without unpausing, and an owner import still unpauses; `/sync/run` records trigger `automation` for automation and `manual` for the owner; typed deletion clears the automation marker.
+- Frontend: Trigger column and the null-safe "Last automatic upload" line.
+- PowerShell `-SelfTest` (no Outlook, no network): window calculation and floor, dedupe, count and byte batching, one-element array serialization, response classification into exit paths, and that non-JSON bodies are never logged. A throwaway harness (not committed) with a stubbed `Invoke-WebRequest` and a synthetic exporter also exercised the success, busy retry, paused (exit 3), denied (exit 4), failed sync (exit 7) and truncated (exit 2) paths and confirmed logs held no message text or credential.
+
+Not yet verified (live acceptance, owner-assisted): `-DryRun` and the export against the real classic Outlook profile, including that the Object Model Guard shows no prompt unattended; the Access service-token flow and the live checks listed in [deployment](deployment.md); the scheduled task itself (registered disabled, not yet run); and the self-test under `pwsh` (CI ubuntu runner), which could not be run on this PC.
