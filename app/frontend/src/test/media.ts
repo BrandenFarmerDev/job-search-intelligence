@@ -7,12 +7,12 @@ const notify = (which: Bucket, matches: boolean) => { for (const listener of [..
 // Controllable stand-ins for matchMedia: the dark-scheme and desktop-width (>= 64rem) queries are independent; any other query never matches.
 export const systemTheme = {
   get listenerCount() { return state.listeners.dark.size; },
-  reset(dark = false) { state.dark = dark; state.listeners.dark.clear(); },
+  reset(dark = false) { state.dark = dark; state.listeners.dark.clear(); state.listeners.other.clear(); },
   change(dark: boolean) { state.dark = dark; notify("dark", dark); },
 };
 export const viewport = {
   get listenerCount() { return state.listeners.wide.size; },
-  reset(wide = false) { state.wide = wide; state.listeners.wide.clear(); },
+  reset(wide = false) { state.wide = wide; state.listeners.wide.clear(); state.listeners.other.clear(); },
   change(wide: boolean) { state.wide = wide; notify("wide", wide); },
 };
 

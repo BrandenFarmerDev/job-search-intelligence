@@ -108,12 +108,13 @@ describe("navigation", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Review" })).toHaveFocus();
     for (const region of page()) expect(region).not.toHaveAttribute("inert");
   });
-  it("does not reopen the overlay when browser Back returns to the route it was opened on", async () => {
+  it("closes the open overlay when browser Back changes the route, so it cannot reopen later", async () => {
     renderApp("/");
     const panel = screen.getByRole("navigation", { name: "Primary navigation" });
-    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     await userEvent.click(nav().getByRole("link", { name: "Applications" }));
     await screen.findByRole("heading", { level: 1, name: "Applications" });
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    expect(panel).toHaveAttribute("data-open", "true");
     act(() => history.back());
     await screen.findByRole("heading", { level: 1, name: "Overview" });
     expect(panel).toHaveAttribute("data-open", "false");
