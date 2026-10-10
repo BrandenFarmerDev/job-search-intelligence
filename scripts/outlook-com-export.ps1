@@ -70,6 +70,7 @@ function Read-Folder([object]$Store, [int]$FolderKind, [string]$FolderName, [Dat
   $result = [System.Collections.Generic.List[object]]::new()
   $scanned = 0
   $matched = 0
+  $seen = [System.Collections.Generic.HashSet[string]]::new()
   for ($index = 1; $index -le $items.Count; $index++) {
     $item = Track-Com $items.Item($index)
     if ($null -eq $item -or $item.Class -ne 43) { continue }
@@ -82,11 +83,13 @@ function Read-Folder([object]$Store, [int]$FolderKind, [string]$FolderName, [Dat
     $body = Get-String $item.Body 6000
     $subject = Get-String $item.Subject 500
     if (-not (Test-JobRelevant $subject $sender $body)) { continue }
+    $immutableId = Get-Sha256Hex "$AccountId|$($stable.Identity)"
+    if (-not $seen.Add($immutableId)) { continue }
     $matched++
     if ($result.Count -ge $MaxMessagesPerFolder) { continue }
     $revision = ([DateTime]$item.LastModificationTime).ToUniversalTime().ToString('o')
     $result.Add([ordered]@{
-      immutableId = Get-Sha256Hex "$AccountId|$($stable.Identity)"
+      immutableId = $immutableId
       folder = $FolderName
       subject = $subject
       sender = $sender

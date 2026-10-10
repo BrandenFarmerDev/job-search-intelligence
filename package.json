@@ -21,7 +21,8 @@
     "build": "npm run build --workspaces --if-present",
     "db:migrate:local": "npm run db:migrate:local --workspace @job-search/backend",
     "audit": "node scripts/audit.mjs",
-    "quality": "npm run lint && npm run test:coverage && npm run duplication && npm run cf:types:check && npm run typecheck && npm run build && npm run db:migrate:local && npm run audit"
+    "check:powershell": "node scripts/check-powershell.mjs",
+    "quality": "npm run lint && npm run check:powershell && npm run test:coverage && npm run duplication && npm run cf:types:check && npm run typecheck && npm run build && npm run db:migrate:local && npm run audit"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
