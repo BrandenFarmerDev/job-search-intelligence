@@ -14,5 +14,5 @@ HTMLDialogElement.prototype.close = function close() {
 beforeEach(() => { systemTheme.reset(); installMatchMedia(); });
 afterEach(() => {
   cleanup(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks();
-  window.localStorage.clear(); delete document.documentElement.dataset.theme;
+  window.localStorage.clear(); delete document.documentElement.dataset.theme; delete document.documentElement.dataset.sidebar;
 });

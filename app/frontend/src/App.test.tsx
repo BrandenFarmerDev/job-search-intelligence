@@ -63,25 +63,78 @@ describe("navigation", () => {
     renderApp("/", state);
     expect(await nav().findByRole("link", { name: /^Review 100\+\s?records waiting$/ })).toBeInTheDocument();
   });
-  it("toggles the menu, closes it on navigation or Escape, and returns focus to the toggle", async () => {
+  it("opens the menu as a modal overlay, keeps focus inside it and closes it from the scrim, Close, Escape or a link", async () => {
     renderApp("/");
     const toggle = screen.getByRole("button", { name: "Menu" });
+    const panel = screen.getByRole("navigation", { name: "Primary navigation" });
+    const page = () => [document.querySelector(".qe-shell-header"), screen.getByRole("main"), screen.getByRole("contentinfo")];
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByRole("navigation", { name: "Primary navigation" })).toHaveAttribute("data-open", "false");
+    expect(panel).toHaveAttribute("data-open", "false");
+    expect(screen.queryByRole("button", { name: "Close navigation" })).not.toBeInTheDocument();
+    for (const region of page()) expect(region).not.toHaveAttribute("inert");
 
-    await userEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("navigation", { name: "Primary navigation" })).toHaveAttribute("data-open", "true");
+    const open = async () => {
+      await userEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      expect(panel).toHaveAttribute("data-open", "true");
+      expect(nav().getByRole("link", { name: "Overview" })).toHaveFocus();
+      for (const region of page()) expect(region).toHaveAttribute("inert");
+    };
+    const closed = () => {
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(toggle).toHaveFocus();
+      for (const region of page()) expect(region).not.toHaveAttribute("inert");
+    };
+
+    await open();
+    await userEvent.click(screen.getByRole("button", { name: "Close navigation" }));
+    closed();
+    await open();
+    await userEvent.click(nav().getByRole("button", { name: "Close" }));
+    closed();
+    await open();
     await userEvent.keyboard("{Escape}");
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(toggle).toHaveFocus();
+    closed();
 
-    await userEvent.click(toggle);
+    await open();
     await userEvent.click(nav().getByRole("link", { name: /^Review/ }));
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await userEvent.click(toggle);
-    await userEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(await screen.findByRole("heading", { level: 1, name: "Review" })).toHaveFocus();
+    for (const region of page()) expect(region).not.toHaveAttribute("inert");
+  });
+  it("closes the overlay when the window widens to the desktop layout", async () => {
+    renderApp("/");
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    expect(screen.getByRole("main")).toHaveAttribute("inert");
+    // The test matchMedia stand-in notifies every listener, including the layout's desktop-width query.
+    act(() => systemTheme.change(true));
+    expect(screen.getByRole("main")).not.toHaveAttribute("inert");
+    expect(screen.getByRole("button", { name: "Menu" })).toHaveAttribute("aria-expanded", "false");
+  });
+  it("collapses to an icon rail that keeps link names, and remembers the choice", async () => {
+    renderApp("/");
+    const root = document.documentElement;
+    expect(root.dataset.sidebar).toBe("expanded");
+    expect(nav().getByRole("link", { name: "Overview" })).not.toHaveAttribute("title");
+
+    await userEvent.click(screen.getByRole("button", { name: "Collapse navigation" }));
+    const expand = screen.getByRole("button", { name: "Expand navigation" });
+    expect(expand).toHaveAttribute("aria-expanded", "false");
+    expect(expand).toHaveAttribute("aria-controls", "primary-navigation");
+    expect(root.dataset.sidebar).toBe("collapsed");
+    expect(window.localStorage.getItem("qe-sidebar")).toBe("collapsed");
+    expect(nav().getByRole("link", { name: "Overview" })).toHaveAttribute("title", "Overview");
+    expect(nav().getByRole("link", { name: /^Review 1\s?records waiting$/ })).toBeInTheDocument();
+
+    await userEvent.click(expand);
+    expect(root.dataset.sidebar).toBe("expanded");
+    expect(screen.getByRole("button", { name: "Collapse navigation" })).toHaveAttribute("aria-expanded", "true");
+  });
+  it("starts collapsed from a stored preference", () => {
+    window.localStorage.setItem("qe-sidebar", "collapsed");
+    renderApp("/");
+    expect(screen.getByRole("button", { name: "Expand navigation" })).toHaveAttribute("aria-expanded", "false");
+    expect(document.documentElement.dataset.sidebar).toBe("collapsed");
   });
 });
 

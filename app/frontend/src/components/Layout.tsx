@@ -3,14 +3,16 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { REVIEW_CAP } from "../lib/applications";
 import { DashboardProvider, useDashboard } from "../lib/dashboard-context";
 import { freshnessText } from "../lib/format";
+import { useSidebar } from "../lib/sidebar";
 import { useTheme, type ThemePreference } from "../lib/theme";
 import { ErrorAlert } from "./ErrorAlert";
-import { Alert, Button, MenuIcon } from "./ui";
+import { Alert, BriefcaseIcon, Button, CloseIcon, DatabaseIcon, GridIcon, InboxIcon, InfoIcon, MenuIcon, PanelCloseIcon, PanelOpenIcon } from "./ui";
 
 const navItems = [
-  { to: "/", label: "Overview", end: true }, { to: "/applications", label: "Applications" }, { to: "/review", label: "Review" },
-  { to: "/sources", label: "Sources & privacy" }, { to: "/about", label: "About" },
+  { to: "/", label: "Overview", end: true, Icon: GridIcon }, { to: "/applications", label: "Applications", Icon: BriefcaseIcon }, { to: "/review", label: "Review", Icon: InboxIcon },
+  { to: "/sources", label: "Sources & privacy", Icon: DatabaseIcon }, { to: "/about", label: "About", Icon: InfoIcon },
 ];
+const WIDE = "(width >= 64rem)";
 const themes: { value: ThemePreference; label: string }[] = [{ value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }];
 
 export function Layout() {
@@ -21,12 +23,22 @@ function Shell() {
   const { dashboard, reviews, error, notice } = useDashboard();
   const { pathname } = useLocation();
   const { preference, setPreference } = useTheme();
+  const { collapsed, toggle: toggleSidebar } = useSidebar();
   // The menu stays open only for the route it was opened on, so any navigation closes it.
   const [openAt, setOpenAt] = useState<string | null>(null);
   const menuOpen = openAt === pathname;
   const toggle = useRef<HTMLButtonElement>(null);
+  const nav = useRef<HTMLElement>(null);
   const main = useRef<HTMLElement>(null);
   const visited = useRef(pathname);
+  const wasOpen = useRef(false);
+  const closeMenu = () => setOpenAt(null);
+  // Declared before the route effect so that, after navigation, the page heading wins focus over the Menu button.
+  useEffect(() => {
+    if (menuOpen) nav.current?.querySelector("a")?.focus();
+    else if (wasOpen.current) toggle.current?.focus();
+    wasOpen.current = menuOpen;
+  }, [menuOpen]);
   useEffect(() => {
     if (visited.current === pathname) return;
     visited.current = pathname;
@@ -34,15 +46,19 @@ function Shell() {
   }, [pathname]);
   useEffect(() => {
     if (!menuOpen) return;
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") { setOpenAt(null); toggle.current?.focus(); } };
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") closeMenu(); };
+    // The overlay only exists below the desktop breakpoint, so widening the window must not leave the page inert.
+    const wide = window.matchMedia?.(WIDE);
+    const onWide = (event: MediaQueryListEvent) => { if (event.matches) closeMenu(); };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    wide?.addEventListener("change", onWide);
+    return () => { document.removeEventListener("keydown", onKey); wide?.removeEventListener("change", onWide); };
   }, [menuOpen]);
   const waiting = reviews.length;
   return <>
-    <a className="qe-skip-link" href="#main-content">Skip to main content</a>
+    <a className="qe-skip-link" href="#main-content" inert={menuOpen}>Skip to main content</a>
     <div className="qe-shell">
-      <header className="qe-shell-header">
+      <header className="qe-shell-header" inert={menuOpen}>
         <Button ref={toggle} className="qe-nav-toggle" size="compact" aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setOpenAt(menuOpen ? null : pathname)}><MenuIcon />Menu</Button>
         <Link className="qe-brand" to="/">Job Search Intelligence</Link>
         <div className="qe-shell-actions">
@@ -55,15 +71,20 @@ function Shell() {
           </div>
         </div>
       </header>
-      <nav id="primary-navigation" className="qe-sidebar" aria-label="Primary navigation" data-open={menuOpen}>
+      {menuOpen && <button type="button" className="qe-scrim" aria-label="Close navigation" tabIndex={-1} onClick={closeMenu} />}
+      <nav id="primary-navigation" className="qe-sidebar" aria-label="Primary navigation" ref={nav} data-open={menuOpen}>
+        <Button className="qe-sidebar-close" variant="quiet" size="compact" onClick={closeMenu}><CloseIcon />Close</Button>
         <ul className="qe-nav">{navItems.map((item) => <li key={item.to}>
-          <NavLink className="qe-nav-link" to={item.to} end={item.end}>
-            {item.label}{" "}
+          <NavLink className="qe-nav-link" to={item.to} end={item.end} title={collapsed ? item.label : undefined}>
+            <item.Icon size="lg" /><span className="qe-nav-label">{item.label}</span>{" "}
             {item.to === "/review" && waiting > 0 && <span className="qe-nav-badge">{waiting >= REVIEW_CAP ? `${REVIEW_CAP}+` : waiting}<span className="qe-visually-hidden"> records waiting</span></span>}
           </NavLink>
         </li>)}</ul>
+        <Button className="qe-sidebar-toggle" variant="quiet" iconOnly aria-expanded={!collapsed} aria-controls="primary-navigation" aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} title={collapsed ? "Expand navigation" : "Collapse navigation"} onClick={toggleSidebar}>
+          {collapsed ? <PanelOpenIcon size="lg" /> : <PanelCloseIcon size="lg" />}
+        </Button>
       </nav>
-      <main id="main-content" className="qe-main" ref={main} tabIndex={-1}>
+      <main id="main-content" className="qe-main" ref={main} tabIndex={-1} inert={menuOpen}>
         <div className="qe-container qe-stack" data-gap="8">
           {(error || notice) && <div className="qe-stack" data-gap="3">
             {error && <ErrorAlert message={error} />}
@@ -72,7 +93,7 @@ function Shell() {
           <Outlet />
         </div>
       </main>
-      <footer className="qe-footer"><p>Private owner workspace. Outlook and tracker connections are read-only.</p></footer>
+      <footer className="qe-footer" inert={menuOpen}><p>Private owner workspace. Outlook and tracker connections are read-only.</p></footer>
     </div>
   </>;
 }

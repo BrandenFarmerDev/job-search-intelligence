@@ -20,6 +20,11 @@ export const AlertCircleIcon = icon(<><circle cx="12" cy="12" r="9" /><path d="M
 export const MinusCircleIcon = icon(<><circle cx="12" cy="12" r="9" /><path d="M8 12h8" /></>);
 export const InboxIcon = icon(<path d="M4 13V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v7m-16 0v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5m-16 0h4l1.5 2.5h5L16 13h4" />);
 export const FilterIcon = icon(<path d="M4 5h16l-6 7.5V19l-4-2v-4.5L4 5Z" />);
+export const GridIcon = icon(<><rect x="4" y="4" width="7" height="7" rx="1" /><rect x="13" y="4" width="7" height="7" rx="1" /><rect x="4" y="13" width="7" height="7" rx="1" /><rect x="13" y="13" width="7" height="7" rx="1" /></>);
+export const BriefcaseIcon = icon(<><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M3 13h18" /></>);
+export const DatabaseIcon = icon(<><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" /></>);
+export const PanelCloseIcon = icon(<><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16m6-10-2 2 2 2" /></>);
+export const PanelOpenIcon = icon(<><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16m4-10 2 2-2 2" /></>);
 export const MenuIcon = icon(<path d="M4 7h16M4 12h16M4 17h16" />);
 export const SunIcon = icon(<><circle cx="12" cy="12" r="4" /><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4m0-12.8L17 7M7 17l-1.4 1.4" /></>);
 export const MoonIcon = icon(<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" />);

@@ -19,6 +19,7 @@
     grid-template-rows: var(--qe-header-height) minmax(0, 1fr) auto;
     grid-template-areas: "header header" "sidebar main" "sidebar footer";
     min-block-size: 100dvh;
+    transition: grid-template-columns var(--qe-duration-normal) var(--qe-easing-standard);
   }
   .qe-shell-header {
     grid-area: header;
@@ -40,6 +41,9 @@
     position: sticky;
     inset-block-start: var(--qe-header-height);
     block-size: calc(100dvh - var(--qe-header-height));
+    display: flex;
+    flex-direction: column;
+    gap: var(--qe-space-4);
     padding: var(--qe-space-4) var(--qe-space-3);
     overflow-y: auto;
     background: var(--qe-color-surface);
@@ -47,6 +51,7 @@
   }
   .qe-nav { display: flex; flex-direction: column; gap: var(--qe-space-1); margin: 0; padding: 0; list-style: none; }
   .qe-nav-link {
+    position: relative;
     display: flex;
     align-items: center;
     gap: var(--qe-space-2);
@@ -59,12 +64,9 @@
     transition: background-color var(--qe-duration-fast) var(--qe-easing-standard);
   }
   .qe-nav-link:hover { background: var(--qe-color-surface-hover); color: var(--qe-color-text); text-decoration: none; }
-  .qe-nav-link[aria-current="page"] {
-    background: var(--qe-color-surface-selected);
-    color: var(--qe-color-text);
-    font-weight: var(--qe-font-weight-semibold);
-    box-shadow: inset var(--qe-border-width-strong) 0 0 var(--qe-color-primary);
-  }
+  .qe-nav-link[aria-current="page"] { background: var(--qe-color-surface-selected); color: var(--qe-color-selected-fg); font-weight: var(--qe-font-weight-semibold); }
+  .qe-nav-link[aria-current="page"]::before { content: ""; position: absolute; inset-block: var(--qe-space-2); inset-inline-start: 0; inline-size: var(--qe-nav-indicator-width); background: var(--qe-color-selected-fg); border-radius: var(--qe-radius-full); }
+  .qe-scrim { position: fixed; inset: 0; z-index: calc(var(--qe-z-drawer) - 1); padding: 0; background: var(--qe-color-backdrop); border: 0; }
   .qe-main { grid-area: main; min-inline-size: 0; padding-block: var(--qe-space-8) var(--qe-space-12); }
   .qe-footer { grid-area: footer; padding: var(--qe-space-4) var(--qe-space-6); border-block-start: var(--qe-border-width) solid var(--qe-color-border-subtle); color: var(--qe-color-text-muted); font-size: var(--qe-font-size-sm); }
 
@@ -80,7 +82,16 @@
       inline-size: min(var(--qe-sidebar-width), 100%);
       block-size: auto;
     }
-    .qe-sidebar[data-open="true"] { display: block; }
+    .qe-sidebar[data-open="true"] { display: flex; }
+  }
+
+  /* The collapsed rail exists only on desktop; below the breakpoint the navigation is always the full overlay. */
+  @media (width >= 64rem) {
+    :where(.qe-app[data-sidebar="collapsed"]) .qe-shell { grid-template-columns: var(--qe-sidebar-width-collapsed) minmax(0, 1fr); }
+    :where(.qe-app[data-sidebar="collapsed"]) .qe-sidebar { padding-inline: var(--qe-space-2); }
+    :where(.qe-app[data-sidebar="collapsed"]) .qe-nav-link { justify-content: center; padding-inline: 0; }
+    :where(.qe-app[data-sidebar="collapsed"]) .qe-nav-label { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .qe-scrim { display: none; }
   }
 
   .qe-container { inline-size: 100%; max-inline-size: var(--qe-content-max); margin-inline: auto; padding-inline: var(--qe-space-4); }
