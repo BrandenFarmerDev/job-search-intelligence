@@ -78,7 +78,7 @@ export async function dashboard(env: Env): Promise<Dashboard> {
   const localOutlook = Boolean(await env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='local_outlook_last_import'").first());
   const automated = (await env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='local_outlook_last_automated_import'").first<{ value: string }>())?.value ?? null;
   const sheetsPaused = await env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='sheets_paused'").first<{ value: string }>();
-  const runs = (await env.JOB_SEARCH_DB.prepare("SELECT * FROM sync_runs ORDER BY started_at DESC LIMIT 20").all<SyncRun>()).results;
+  const runs = (await env.JOB_SEARCH_DB.prepare("SELECT id,trigger,status,started_at,finished_at,error_code,counters FROM sync_runs ORDER BY started_at DESC LIMIT 20").all<SyncRun>()).results;
   const lastSync = await env.JOB_SEARCH_DB.prepare("SELECT finished_at FROM sync_runs WHERE status='completed' AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT 1").first<{ finished_at: string }>();
   const responded = new Set(events.filter(event => isResponse(event.type)).map(event => event.application_id));
   const followUps = applications.filter(app => !["rejection","withdrawal","position_closed","offer"].includes(app.status) && Date.now()-Date.parse(app.applied_at)>=7*DAY && !responded.has(app.id))

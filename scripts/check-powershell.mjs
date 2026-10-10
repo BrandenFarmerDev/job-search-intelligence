@@ -7,7 +7,11 @@ import { join, resolve } from "node:path";
 const directory = resolve("scripts");
 const files = readdirSync(directory).filter((name) => name.endsWith(".ps1")).sort().map((name) => join(directory, name));
 const engines = ["pwsh", "powershell.exe"].filter((name) => spawnSync(name, ["-NoProfile", "-Command", "exit 0"], { stdio: "ignore" }).status === 0);
-if (!engines.length) { console.log("PowerShell check skipped: neither pwsh nor powershell.exe is available."); process.exit(0); }
+if (!engines.length) {
+  // CI runners ship pwsh, so a missing engine there is a broken gate, not a reason to skip.
+  console.log(`PowerShell check ${process.env.CI ? "failed" : "skipped"}: neither pwsh nor powershell.exe is available.`);
+  process.exit(process.env.CI ? 1 : 0);
+}
 const quote = (value) => `'${value.replaceAll("'", "''")}'`;
 const parse = `$bad = 0; foreach ($file in @(${files.map(quote).join(",")})) { $tokens = $null; $errors = $null; [void][Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors); foreach ($e in $errors) { $bad++; [Console]::Error.WriteLine(("{0}:{1}: {2}" -f $file, $e.Extent.StartLineNumber, $e.Message)) } }; if ($bad) { exit 1 }`;
 let failed = false;

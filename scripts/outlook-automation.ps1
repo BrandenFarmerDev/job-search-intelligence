@@ -221,9 +221,9 @@ function Initialize-State {
   $script:StateRoot = if ($StateDirectory) { $StateDirectory } elseif ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'JobSearchIntelligence' } else { Join-Path ([IO.Path]::GetTempPath()) 'JobSearchIntelligence' }
   foreach ($name in 'logs', 'work') { [IO.Directory]::CreateDirectory((Get-StatePath $name)) | Out-Null }
   $script:LogFile = Join-Path (Get-StatePath 'logs') ([DateTime]::UtcNow.ToString('yyyyMMdd') + '.log')
-  Get-ChildItem -LiteralPath (Get-StatePath 'logs') -Filter '*.log' | Where-Object { $_.LastWriteTimeUtc -lt [DateTime]::UtcNow.AddDays(-$script:LogKeepDays) } | Remove-Item -Force
-  Get-ChildItem -LiteralPath (Get-StatePath 'work') -Force | Remove-Item -Recurse -Force
 }
+function Clear-Work { Get-ChildItem -LiteralPath (Get-StatePath 'work') -Force | Remove-Item -Recurse -Force }
+function Remove-OldLogs { Get-ChildItem -LiteralPath (Get-StatePath 'logs') -Filter '*.log' | Where-Object { $_.LastWriteTimeUtc -lt [DateTime]::UtcNow.AddDays(-$script:LogKeepDays) } | Remove-Item -Force }
 function Read-Credential {
   $path = Get-StatePath 'automation-credential.xml'
   if (-not (Test-Path -LiteralPath $path)) { Stop-Run 1 'credential_missing_run_setup' }
@@ -249,6 +249,7 @@ function Export-Mail([string]$Since, [string]$Destination) {
   try { [void](& $exporter -Mailbox $Mailbox -Since $Since -OutputPath $Destination -Force) }
   catch { Write-Log "export=failed type=$($_.Exception.GetType().Name) message=$(([string]$_.Exception.Message).Substring(0, [Math]::Min(200, ([string]$_.Exception.Message).Length)))"; Stop-Run 1 'export_failed' }
   $bundle = [IO.File]::ReadAllText($Destination, $script:Utf8) | ConvertFrom-Json
+  Remove-Item -LiteralPath $Destination -Force # mail content leaves the disk as soon as it is in memory
   $summary = Get-Prop $bundle 'summary'
   if ((Get-Prop $summary 'truncated') -ne $false) {
     Write-Log 'export=truncated action=run_a_narrower_manual_export_with_outlook-com-export.ps1_and_import_it_from_the_dashboard'
@@ -263,6 +264,7 @@ function Invoke-Run {
   try {
     if (-not $mutex.WaitOne(0)) { Write-Log 'result=already_running exit=0'; return 0 }
     $held = $true
+    Clear-Work; Remove-OldLogs
     $started = [DateTime]::UtcNow
     $script:Deadline = $started.AddMinutes($script:RunBudgetMinutes)
     $script:Base = $ApiBase.TrimEnd('/')
@@ -283,10 +285,10 @@ function Invoke-Run {
     $number = 0
     foreach ($batch in $batches) { $number++; Send-Batch $header $batch $number }
     $values = @{ lastExportedAt = Format-Value (Get-Prop $header 'exportedAt'); lastMessages = $messages.Count; lastBatches = $batches.Count }
+    Save-State $values
     $id = $null; $deadline = [DateTime]::UtcNow.AddMinutes($script:SyncWaitMinutes)
     for ($attempt = 1; $attempt -le 3; $attempt++) {
       $id = Start-Sync
-      if ($attempt -eq 1) { Save-State $values }
       $outcome = Wait-SyncRun $id $deadline
       Write-Log "sync=$outcome attempt=$attempt"
       if ($outcome -eq 'completed') { Write-Log 'result=completed exit=0'; return 0 }
@@ -303,8 +305,7 @@ function Invoke-Run {
     Write-Log "result=unexpected type=$($_.Exception.GetType().Name) exit=1"
     return 1
   } finally {
-    try { Get-ChildItem -LiteralPath (Get-StatePath 'work') -Force | Remove-Item -Recurse -Force } catch { }
-    if ($held) { $mutex.ReleaseMutex() }
+    if ($held) { try { Clear-Work } catch { }; $mutex.ReleaseMutex() }
     $mutex.Dispose()
   }
 }

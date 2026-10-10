@@ -20,7 +20,7 @@ it("limits the automation principal to an exact route allowlist without an Origi
  vi.mocked(authorize).mockResolvedValue({kind:"automation",id:"automation"});
  for(const [path,method] of [["/local-outlook/import","POST"],["/sync/run","POST"],["/sync-runs","GET"]])expect((await call(path,method)).status).toBe(200);
  expect(vi.mocked(intelligenceRoute).mock.calls[0][2]).toEqual({kind:"automation",id:"automation"});
- for(const [path,method] of [["/dashboard","GET"],["/data","DELETE"],["/applications","POST"],["/sync/run/","POST"],["/sync-runs","POST"],["/local-outlook/import","GET"],["/x/sync/run","POST"]]){const response=await call(path,method);expect(response.status).toBe(403);expect((await response.json() as {error:string}).error).toBe("automation_route_forbidden");}
+ for(const [path,method] of [["/dashboard","GET"],["/data","DELETE"],["/applications","POST"],["/sync/run/","POST"],["/sync-runs","POST"],["/local-outlook/import","GET"],["/x/sync/run","POST"],["/sync-runs","HEAD"],["/sync-runs/","GET"],["/sync%2Druns","GET"],["/local-outlook/import/","POST"],["/local-outlook%2Fimport","POST"]]){const response=await call(path,method);expect(response.status).toBe(403);expect((await response.json() as {error:string}).error).toBe("automation_route_forbidden");}
  for(const origin of [env.ALLOWED_ORIGIN,"https://evil.example"])expect((await call("/sync/run","POST",origin)).status).toBe(403);
  vi.mocked(intelligenceRoute).mockClear();
  vi.mocked(authorize).mockResolvedValue({kind:"owner",id:"owner"});
