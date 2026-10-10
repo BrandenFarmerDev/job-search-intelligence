@@ -14,7 +14,7 @@ export const makeDashboard = (): Dashboard => ({
   weekly: [{ weekStart: "2026-09-21", count: 1 }, { weekStart: "2026-09-28", count: 3 }],
   medianFirstResponseDays: 3.5, lastSuccessfulSyncAt: "2026-10-01T18:30:00Z",
   connections: { microsoft: false, localOutlook: false, sheets: true },
-  runs: [1, 2, 3].map((id) => ({ id: String(id), status: "failed", started_at: "2026-10-01T10:00:00Z", finished_at: "2026-10-01T10:00:12Z", error_code: "provider_request_failed", counters: "{}" })),
+  runs: [1, 2, 3].map((id) => ({ id: String(id), status: "failed", trigger: "manual", started_at: "2026-10-01T10:00:00Z", finished_at: "2026-10-01T10:00:12Z", error_code: "provider_request_failed", counters: "{}" })),
   followUps: [{ application_id: "app1", company: "ExampleCo", role: "Engineer", due_at: "2026-10-07T00:00:00Z" }],
 });
 export const makeReviews = (): ReviewItem[] => [{ id: "review1", source: "email", source_id: "source1", state: "needs_review", reason: "Ambiguous", subject: "Recruiter update", available: 0 }];
