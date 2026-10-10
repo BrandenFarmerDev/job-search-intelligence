@@ -73,16 +73,22 @@ export function SourcesPage() {
             <Button disabled={busy} onClick={refresh}>Refresh</Button>
           </>}>
           <div className="qe-stack" data-gap="5">
-            <div className="qe-stack" data-gap="3">
-              <p className="qe-cluster" data-gap="2"><span className="qe-label">Local Outlook</span><StatusBadge value={dashboard.connections.localOutlook ? "imported" : "not_imported"} /></p>
-              <Field label="Import local Outlook JSON" help="Choose the JSON file written by the Windows export script. Up to 10 MB and 10,000 messages.">{(control) => <input {...control} className="qe-input" type="file" accept="application/json,.json" disabled={busy}
-                onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; void importLocalOutlook(file); }} />}</Field>
+            <div className="qe-stack" data-gap="2">
+              <div className="qe-connection">
+                <span className="qe-label">Local Outlook</span><StatusBadge value={dashboard.connections.localOutlook ? "imported" : "not_imported"} />
+                <div className="qe-connection-action">
+                  <Field label="Import local Outlook JSON" help="Choose the JSON file written by the Windows export script. Up to 10 MB and 10,000 messages.">{(control) => <input {...control} className="qe-input" type="file" accept="application/json,.json" disabled={busy}
+                    onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; void importLocalOutlook(file); }} />}</Field>
+                </div>
+              </div>
               <p className="qe-help" aria-live="polite">{progress}</p>
             </div>
             <hr className="qe-divider" />
-            <div className="qe-cluster" data-gap="4">
-              <p className="qe-cluster" data-gap="2"><span className="qe-label">Google tracker</span><StatusBadge value={dashboard.connections.sheets ? "connected" : "not_connected"} /></p>
-              <Button disabled={busy} onClick={() => runAction("/connections/sheets", dashboard.connections.sheets ? "DELETE" : "POST")}>{dashboard.connections.sheets ? "Pause tracker" : "Connect tracker"}</Button>
+            <div className="qe-connection">
+              <span className="qe-label">Google tracker</span><StatusBadge value={dashboard.connections.sheets ? "connected" : "not_connected"} />
+              <div className="qe-connection-action">
+                <Button disabled={busy} onClick={() => runAction("/connections/sheets", dashboard.connections.sheets ? "DELETE" : "POST")}>{dashboard.connections.sheets ? "Pause tracker" : "Connect tracker"}</Button>
+              </div>
             </div>
           </div>
         </Panel>

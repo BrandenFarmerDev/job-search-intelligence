@@ -34,8 +34,8 @@
     background: var(--qe-color-surface);
     border-block-end: var(--qe-border-width) solid var(--qe-color-border);
   }
-  .qe-brand { color: var(--qe-color-text); font-weight: var(--qe-font-weight-semibold); font-size: var(--qe-font-size-lg); text-decoration: none; }
-  .qe-shell-actions { display: flex; align-items: center; gap: var(--qe-space-4); margin-inline-start: auto; }
+  .qe-brand { min-inline-size: 0; overflow: hidden; color: var(--qe-color-text); font-weight: var(--qe-font-weight-semibold); font-size: var(--qe-font-size-lg); text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+  .qe-shell-actions { display: flex; flex: none; align-items: center; gap: var(--qe-space-4); margin-inline-start: auto; }
   .qe-sidebar {
     grid-area: sidebar;
     position: sticky;
@@ -106,6 +106,7 @@
   [data-gap="5"] { --qe-gap: var(--qe-space-5); }
   [data-gap="6"] { --qe-gap: var(--qe-space-6); }
   [data-gap="8"] { --qe-gap: var(--qe-space-8); }
+  [data-gap="section"] { --qe-gap: var(--qe-section-gap); }
   .qe-stack { display: flex; flex-direction: column; }
   .qe-inline { display: flex; flex-wrap: wrap; align-items: center; }
   .qe-cluster { display: flex; flex-wrap: wrap; align-items: center; }
@@ -121,7 +122,8 @@
   }
   .qe-divider { block-size: 0; margin: 0; border: 0; border-block-start: var(--qe-border-width) solid var(--qe-color-border-subtle); }
 
-  .qe-page-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--qe-space-4) var(--qe-space-6); }
+  /* Header to content is 1.5rem; the stack's section gap would otherwise make it larger. */
+  .qe-page-header { margin-block-end: calc(var(--qe-space-6) - var(--qe-section-gap)); display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--qe-space-4) var(--qe-space-6); }
   .qe-page-title { font-size: var(--qe-font-size-2xl); font-weight: var(--qe-font-weight-semibold); line-height: var(--qe-line-height-tight); overflow-wrap: anywhere; }
   .qe-page-description { max-inline-size: var(--qe-reading-max); color: var(--qe-color-text-secondary); }
   .qe-breadcrumb { color: var(--qe-color-text-muted); font-size: var(--qe-font-size-sm); }

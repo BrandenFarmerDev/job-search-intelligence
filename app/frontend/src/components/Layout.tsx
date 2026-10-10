@@ -61,7 +61,7 @@ function Shell() {
     <a className="qe-skip-link" href="#main-content" inert={menuOpen}>Skip to main content</a>
     <div className="qe-shell">
       <header className="qe-shell-header" inert={menuOpen}>
-        <Button ref={toggle} className="qe-nav-toggle" size="compact" aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setOpenAt(menuOpen ? null : pathname)}><MenuIcon />Menu</Button>
+        <Button ref={toggle} className="qe-nav-toggle" size="compact" aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setOpenAt(menuOpen ? null : pathname)}><MenuIcon /><span className="qe-nav-toggle-label">Menu</span></Button>
         <Link className="qe-brand" to="/">Job Search Intelligence</Link>
         <div className="qe-shell-actions">
           <p className="qe-freshness">{freshnessText(dashboard?.lastSuccessfulSyncAt)}</p>
@@ -82,7 +82,7 @@ function Shell() {
         </Button>
       </nav>
       <main id="main-content" className="qe-main" ref={main} tabIndex={-1} inert={menuOpen}>
-        <div className="qe-container qe-stack" data-gap="8">
+        <div className="qe-container qe-stack" data-gap="section">
           {(error || notice) && <div className="qe-stack" data-gap="3">
             {error && <ErrorAlert message={error} />}
             {notice && <Alert tone="success">{notice}</Alert>}
