@@ -79,7 +79,6 @@
       z-index: var(--qe-z-drawer);
       inline-size: min(var(--qe-sidebar-width), 100%);
       block-size: auto;
-      box-shadow: var(--qe-shadow-overlay);
     }
     .qe-sidebar[data-open="true"] { display: block; }
   }
