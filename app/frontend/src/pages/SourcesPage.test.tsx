@@ -126,6 +126,21 @@ describe("sync history", () => {
     expect(within(table).getAllByText(/12 s/)).toHaveLength(3);
     expect(within(table).getByRole("columnheader", { name: "Duration" })).toHaveAttribute("data-align", "end");
     expect(within(table).getAllByText("Provider request failed")).toHaveLength(3);
+    expect(within(table).getAllByText("Manual")).toHaveLength(3);
+  });
+  it("labels the trigger of automatic runs and shows the last automatic upload only when there is one", async () => {
+    const without = renderApp("/sources");
+    await ready();
+    expect(screen.queryByText(/Last automatic upload/)).not.toBeInTheDocument();
+    without.unmount();
+    renderApp("/sources", dashboardWith((state) => {
+      state.dashboard.localOutlookLastAutomatedAt = "2026-10-02T08:00:00Z";
+      state.dashboard.runs = [{ ...state.dashboard.runs[0], id: "9", trigger: "automation" }, { ...state.dashboard.runs[1], trigger: undefined }];
+    }));
+    const table = await screen.findByRole("table", { name: "Sync history" });
+    expect(within(table).getByText("Automation")).toBeInTheDocument();
+    expect(within(table).getAllByText("—")).toHaveLength(1);
+    expect(screen.getByText(/Last automatic upload: /)).toBeInTheDocument();
   });
   it("does not warn when a recent run succeeded, and handles runs that have not finished", async () => {
     renderApp("/sources", dashboardWith((state) => {

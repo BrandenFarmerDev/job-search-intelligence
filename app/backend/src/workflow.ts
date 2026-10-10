@@ -2,7 +2,7 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloud
 import { acquireLease, heartbeat, ingestGraphPage, processMessages, retain, syncSheets } from "./services/sync";
 import { Problem } from "./services/security";
 
-export interface SyncParameters { trigger: "manual" | "scheduled" }
+export interface SyncParameters { trigger: "manual" | "scheduled" | "automation" }
 export function retryDelay({error}:{error:Error}): `${number} seconds` { return `${error instanceof Problem ? error.retryAfter : 30} seconds`; }
 const retry = { retries: { limit: 3, delay: retryDelay, backoff: "exponential" as const }, timeout: "2 minutes" as const, sensitive: "output" as const };
 export class JobSyncWorkflow extends WorkflowEntrypoint<Env, SyncParameters> {

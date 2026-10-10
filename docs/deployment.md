@@ -44,6 +44,16 @@ Once the owner supplies a usable directory:
 5. Historical start is September 30, 2026 midnight Pacific: `2026-09-30T07:00:00Z`. Connect via the owner UI and verify backfill, repeated delta, move/removal, refresh/disconnect and retention against controlled examples.
 6. Enable scheduled sync only after both provider acceptance and release checks pass.
 
+## Outlook upload automation (production only)
+
+Owner decision, October 10, 2026 (details in [local Outlook fallback](outlook-local-fallback.md)). Preview stays without automation: leave `AUTOMATION_CLIENT_ID` unset there. No client ID, token or secret belongs in the repository, workflows or these docs.
+
+1. The owner creates an Access service token (1 year) in Zero Trust > Access > Service credentials and adds a **Service Auth** policy that includes only that token to the production Access application. The owner-email policy is not changed. The token secret is typed only into `outlook-automation.ps1 -SetupCredential` on the PC.
+2. After the code is deployed, set the non-secret client ID as a Worker secret: `wrangler secret put AUTOMATION_CLIENT_ID --env production`. It is declared in `env.d.ts`, not in `wrangler.jsonc`, so `npm run cf:types` output is unchanged. While it is unset, every service-token request is rejected (fail closed).
+3. Accept live, in order: no headers gives the Access login redirect; the token on `GET /dashboard` gives 403 `automation_route_forbidden`; the token with an `Origin` header gives 403; a wrong secret is rejected by Access; the installed script run directly queues a sync (202) and the latest `sync_runs` row has `trigger='automation'` and `status='completed'`; an immediate re-run leaves message counts stable and the application count does not drop (read-only D1 counts and run metadata only). Paused behaviour is verified by unit tests only; production is not paused for the test. Then enable the task with `register-outlook-automation-task.ps1 -Enable`.
+4. `SYNC_ENABLED` stays `false`, so the server cron does not run; `AI_ENABLED=false`, `AI_DAILY_CALL_LIMIT=0` and `MICROSOFT_GRAPH_ENABLED=false` are unchanged.
+5. Revocation: delete the token (or its policy) in Zero Trust, unset the Worker secret, and unregister the task.
+
 ## GitHub administration
 
 Repository: `BrandenFarmerDev/job-search-intelligence`. Main ruleset `24341809` was copied from portfolio `24193519`: PR required, updated branch, required `Quality gates` and `Analyze JavaScript and TypeScript`, no force push/deletion or bypass.

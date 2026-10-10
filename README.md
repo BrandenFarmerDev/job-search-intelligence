@@ -19,6 +19,6 @@ npm run quality
 
 Local private routes fail closed until real Access is configured; there is no development owner bypass. Integration tests use synthetic fixtures and SQLite-backed D1 semantics. `npm run build` builds frontend assets and dry-runs the Worker without publishing. Never copy production credentials/data into local or preview.
 
-Quality gates require zero lint warnings, at least 85% statements/branches/functions/lines in each suite, duplication below 3%, fresh Worker types, strict TypeScript, builds/migrations and zero reported dependency audit vulnerabilities. Local audit cannot prove the absence of every security defect. GitHub CodeQL must run on published source before release.
+Quality gates require zero lint warnings, a PowerShell parse check and self-test of the Windows scripts, at least 85% statements/branches/functions/lines in each suite, duplication below 3%, fresh Worker types, strict TypeScript, builds/migrations and zero reported dependency audit vulnerabilities. Local audit cannot prove the absence of every security defect. GitHub CodeQL must run on published source before release.
 
 Read [the execution tracker](Job_Intelligence_Architecture_and_Implementation_Plan.md), [architecture](docs/architecture.md), [local Outlook fallback](docs/outlook-local-fallback.md), [deployment](docs/deployment.md), [QA evidence](docs/qa.md), [release checklist](docs/release-checklist.md), and [handoff](AGENT_HANDOFF.md).

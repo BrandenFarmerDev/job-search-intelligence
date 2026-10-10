@@ -4,7 +4,7 @@ import { intelligenceRoute } from "./intelligence";
 import { fixture } from "../test/fixtures";
 
 type Seed = { id: string; company?: string; role?: string; applied?: string; status?: string; source?: string; excluded?: number; updated?: string };
-const list = (env: Env) => async (query = "") => await (await intelligenceRoute(new Request(`https://api.example.com/api/job-intelligence/applications?${query}`), env, "owner")).json() as ApplicationListResponse;
+const list = (env: Env) => async (query = "") => await (await intelligenceRoute(new Request(`https://api.example.com/api/job-intelligence/applications?${query}`), env, { kind: "owner", id: "owner" })).json() as ApplicationListResponse;
 const ids = (result: ApplicationListResponse) => result.applications.map((app) => app.id);
 async function seed(db: D1Database, rows: Seed[]) {
   for (const row of rows) await db.prepare("INSERT INTO applications(id,company,role,applied_at,status,source,reconciliation,excluded,updated_at) VALUES(?,?,?,?,?,?,'matched',?,?)")

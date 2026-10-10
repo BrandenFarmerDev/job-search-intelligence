@@ -76,13 +76,14 @@ export async function dashboard(env: Env): Promise<Dashboard> {
   const events = (await env.JOB_SEARCH_DB.prepare("SELECT e.application_id,e.type,e.occurred_at,COALESCE(json_extract(e.evidence,'$.dateKnown'),1) AS date_known FROM application_events e LEFT JOIN reconciliation_matches r ON r.source=e.source AND r.source_id=e.source_id WHERE COALESCE(json_extract(e.evidence,'$.superseded'),0)=0 AND json_extract(e.evidence,'$.method')<>'review_required' AND COALESCE(r.state,'')<>'excluded'").all<{ application_id: string; type: string; occurred_at: string;date_known:number }>()).results;
   const microsoft = env.MICROSOFT_GRAPH_ENABLED === "true" && Boolean(await env.JOB_SEARCH_DB.prepare("SELECT provider FROM connections WHERE provider='microsoft'").first());
   const localOutlook = Boolean(await env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='local_outlook_last_import'").first());
+  const automated = (await env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='local_outlook_last_automated_import'").first<{ value: string }>())?.value ?? null;
   const sheetsPaused = await env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='sheets_paused'").first<{ value: string }>();
-  const runs = (await env.JOB_SEARCH_DB.prepare("SELECT * FROM sync_runs ORDER BY started_at DESC LIMIT 20").all<SyncRun>()).results;
+  const runs = (await env.JOB_SEARCH_DB.prepare("SELECT id,trigger,status,started_at,finished_at,error_code,counters FROM sync_runs ORDER BY started_at DESC LIMIT 20").all<SyncRun>()).results;
   const lastSync = await env.JOB_SEARCH_DB.prepare("SELECT finished_at FROM sync_runs WHERE status='completed' AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT 1").first<{ finished_at: string }>();
   const responded = new Set(events.filter(event => isResponse(event.type)).map(event => event.application_id));
   const followUps = applications.filter(app => !["rejection","withdrawal","position_closed","offer"].includes(app.status) && Date.now()-Date.parse(app.applied_at)>=7*DAY && !responded.has(app.id))
     .map(app=>({application_id:app.id,company:app.company,role:app.role,due_at:new Date(Date.parse(app.applied_at)+7*86400000).toISOString()}));
-  return { applications: applications.slice(0, 100), total: applications.length, ...analytics(applications, events), lastSuccessfulSyncAt: lastSync?.finished_at ?? null, connections: { microsoft, localOutlook, sheets: Boolean(env.GOOGLE_SERVICE_ACCOUNT_JSON) && sheetsPaused?.value !== "true" }, runs, followUps };
+  return { applications: applications.slice(0, 100), total: applications.length, ...analytics(applications, events), lastSuccessfulSyncAt: lastSync?.finished_at ?? null, connections: { microsoft, localOutlook, sheets: Boolean(env.GOOGLE_SERVICE_ACCOUNT_JSON) && sheetsPaused?.value !== "true" }, localOutlookLastAutomatedAt: automated, runs, followUps };
 }
 export function csv(applications: ApplicationRecord[]): string {
   const cell = (value: string | null) => {

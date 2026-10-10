@@ -24,6 +24,7 @@ function parseExport(text: string): { source: Record<string, unknown>; messages:
 
 const runColumns: Column<SyncRun>[] = [
   { key: "started", header: "Started", render: (run) => formatDateTime(run.started_at) },
+  { key: "trigger", header: "Trigger", render: (run) => run.trigger ? humanize(run.trigger) : "—" },
   { key: "status", header: "Status", render: (run) => <StatusBadge value={run.status} /> },
   { key: "finished", header: "Finished", render: (run) => run.finished_at ? formatDateTime(run.finished_at) : "Not finished" },
   { key: "duration", header: "Duration", align: "end", render: (run) => run.finished_at ? formatDuration(run.started_at, run.finished_at) : "—" },
@@ -81,6 +82,7 @@ export function SourcesPage() {
                     onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; void importLocalOutlook(file); }} />}</Field>
                 </div>
               </div>
+              {dashboard.localOutlookLastAutomatedAt && <p className="qe-help">Last automatic upload: {formatDateTime(dashboard.localOutlookLastAutomatedAt)}</p>}
               <p className="qe-help" aria-live="polite">{progress}</p>
             </div>
             <hr className="qe-divider" />

@@ -4,7 +4,8 @@ const keySets = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 export class Problem extends Error {
   constructor(public status: number, public code: string, public retryAfter = 30) { super(code); }
 }
-export async function authorize(request: Request, env: Env): Promise<string> {
+export type Principal = { kind: "owner" | "automation"; id: string };
+export async function authorize(request: Request, env: Env): Promise<Principal> {
   const token = request.headers.get("Cf-Access-Jwt-Assertion");
   if (!token || !env.ACCESS_AUD || !env.ACCESS_TEAM_DOMAIN || !env.OWNER_EMAIL) throw new Problem(401, "authentication_required");
   const issuer = `https://${env.ACCESS_TEAM_DOMAIN}`;
@@ -12,9 +13,11 @@ export async function authorize(request: Request, env: Env): Promise<string> {
   let keys = keySets.get(issuer);
   if (!keys) { keys = createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`), { timeoutDuration: 5000 }); keySets.set(issuer, keys); }
   try {
-    const { payload } = await jwtVerify(token, keys, { issuer, audience: env.ACCESS_AUD, algorithms: ["RS256"], requiredClaims: ["exp", "sub", "email"] });
-    if (payload.email !== env.OWNER_EMAIL) throw new Error("owner_required");
-    return payload.sub!;
+    const { payload } = await jwtVerify(token, keys, { issuer, audience: env.ACCESS_AUD, algorithms: ["RS256"], requiredClaims: ["exp"] });
+    if (payload.email === env.OWNER_EMAIL && typeof payload.sub === "string" && payload.sub) return { kind: "owner", id: payload.sub };
+    // Access service tokens carry common_name (the client ID), an empty sub and no email.
+    if (env.AUTOMATION_CLIENT_ID && payload.common_name === env.AUTOMATION_CLIENT_ID && payload.sub === "" && !("email" in payload) && payload.type === "app") return { kind: "automation", id: "automation" };
+    throw new Error("principal_required");
   } catch { throw new Problem(401, "authentication_required"); }
 }
 export async function readJson(request: Request, limit = 16384): Promise<Record<string, unknown>> {
