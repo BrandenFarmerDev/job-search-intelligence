@@ -26,19 +26,21 @@ function Shell() {
   const { pathname } = useLocation();
   const { preference, setPreference } = useTheme();
   const { collapsed, toggle: toggleSidebar } = useSidebar();
-  // The menu stays open only for the route it was opened on, so any navigation closes it.
-  const [openAt, setOpenAt] = useState<string | null>(null);
-  const menuOpen = openAt === pathname;
+  const [menuOpen, setMenuOpen] = useState(false);
+  // Any navigation, including Back to a previously visited route, closes the menu.
+  const [menuPath, setMenuPath] = useState(pathname);
+  if (menuPath !== pathname) { setMenuPath(pathname); setMenuOpen(false); }
   const toggle = useRef<HTMLButtonElement>(null);
   const nav = useRef<HTMLElement>(null);
   const main = useRef<HTMLElement>(null);
   const visited = useRef(pathname);
   const wasOpen = useRef(false);
-  const closeMenu = () => setOpenAt(null);
+  const closeMenu = () => setMenuOpen(false);
   // Declared before the route effect so that, after navigation, the page heading wins focus over the Menu button.
   useEffect(() => {
-    if (menuOpen) nav.current?.querySelector("a")?.focus();
-    else if (wasOpen.current) toggle.current?.focus();
+    if (menuOpen) (nav.current?.querySelector<HTMLElement>('[aria-current="page"]') ?? nav.current?.querySelector("a"))?.focus();
+    // After the window widens the Menu button is hidden, so focus goes to the page instead.
+    else if (wasOpen.current) (toggle.current?.checkVisibility?.() ?? true ? toggle.current : main.current)?.focus();
     wasOpen.current = menuOpen;
   }, [menuOpen]);
   useEffect(() => {
@@ -61,23 +63,23 @@ function Shell() {
     <a className="qe-skip-link" href="#main-content" inert={menuOpen}>Skip to main content</a>
     <div className="qe-shell">
       <header className="qe-shell-header" inert={menuOpen}>
-        <Button ref={toggle} className="qe-nav-toggle" size="compact" aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setOpenAt(menuOpen ? null : pathname)}><MenuIcon /><span className="qe-nav-toggle-label">Menu</span></Button>
+        <Button ref={toggle} className="qe-nav-toggle" size="compact" aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen(!menuOpen)}><MenuIcon /><span className="qe-nav-toggle-label">Menu</span></Button>
         <Link className="qe-brand" to="/">Job Search Intelligence</Link>
         <div className="qe-shell-actions">
           <p className="qe-freshness">{freshnessText(dashboard?.lastSuccessfulSyncAt)}</p>
           <SegmentedControl label="Theme" options={themes} value={preference} onChange={setPreference} iconOnly />
         </div>
       </header>
-      {menuOpen && <button type="button" className="qe-scrim" aria-label="Close navigation" tabIndex={-1} onClick={closeMenu} />}
+      {menuOpen && <button type="button" className="qe-scrim" aria-label="Close navigation" aria-hidden="true" tabIndex={-1} onClick={closeMenu} />}
       <nav id="primary-navigation" className="qe-sidebar" aria-label="Primary navigation" ref={nav} data-open={menuOpen}>
         <Button className="qe-sidebar-close" variant="quiet" size="compact" onClick={closeMenu}><CloseIcon />Close</Button>
         <ul className="qe-nav">{navItems.map((item) => <li key={item.to}>
-          <NavLink className="qe-nav-link" to={item.to} end={item.end} title={collapsed ? item.label : undefined}>
+          <NavLink className="qe-nav-link" to={item.to} end={item.end} title={collapsed ? item.label : undefined} onClick={closeMenu}>
             <item.Icon size="lg" /><span className="qe-nav-label">{item.label}</span>{" "}
             {item.to === "/review" && waiting > 0 && <span className="qe-nav-badge">{waiting >= REVIEW_CAP ? `${REVIEW_CAP}+` : waiting}<span className="qe-visually-hidden"> records waiting</span></span>}
           </NavLink>
         </li>)}</ul>
-        <Button className="qe-sidebar-toggle" variant="quiet" iconOnly aria-expanded={!collapsed} aria-controls="primary-navigation" aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} title={collapsed ? "Expand navigation" : "Collapse navigation"} onClick={toggleSidebar}>
+        <Button className="qe-sidebar-toggle" variant="quiet" iconOnly aria-expanded={!collapsed} aria-controls="primary-navigation" aria-label="Navigation panel" title={collapsed ? "Expand navigation" : "Collapse navigation"} onClick={toggleSidebar}>
           {collapsed ? <PanelOpenIcon size="lg" /> : <PanelCloseIcon size="lg" />}
         </Button>
       </nav>

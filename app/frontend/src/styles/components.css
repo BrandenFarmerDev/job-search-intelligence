@@ -62,6 +62,7 @@
     border-color: var(--qe-color-border);
   }
   .qe-button[aria-busy="true"] { cursor: progress; }
+  .qe-button-label { display: inline-flex; align-items: center; gap: var(--qe-space-2); }
   .qe-button[aria-busy="true"] > .qe-button-label { opacity: 0; }
   .qe-button-spinner { position: absolute; inset-block-start: 50%; inset-inline-start: 50%; margin: calc(var(--qe-icon-size) / -2) 0 0 calc(var(--qe-icon-size) / -2); }
   .qe-spinner {
@@ -291,7 +292,6 @@
 
   /* Shell utilities and page patterns */
   .qe-button.qe-nav-toggle { display: none; }
-  .qe-nav-toggle-label { margin-inline-start: var(--qe-space-2); }
   .qe-freshness { color: var(--qe-color-text-secondary); font-size: var(--qe-font-size-sm); }
   .qe-nav-badge { margin-inline-start: auto; padding: 0 var(--qe-space-2); background: var(--qe-color-warning-surface); color: var(--qe-color-warning); border-radius: var(--qe-radius-full); font-size: var(--qe-font-size-xs); font-variant-numeric: tabular-nums; }
   .qe-button.qe-sidebar-close { display: none; align-self: flex-end; }

@@ -2,9 +2,9 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { intelligenceApi } from "./lib/api";
-import { systemTheme } from "./test/media";
+import { systemTheme, viewport } from "./test/media";
 import { makeState } from "./test/fixtures";
-import { renderApp, violations } from "./test/render";
+import { history, renderApp, violations } from "./test/render";
 
 vi.mock("./lib/api", async (importOriginal) => ({ ...await importOriginal<typeof import("./lib/api")>(), intelligenceApi: vi.fn() }));
 
@@ -70,7 +70,8 @@ describe("navigation", () => {
     const page = () => [document.querySelector(".qe-shell-header"), screen.getByRole("main"), screen.getByRole("contentinfo")];
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(panel).toHaveAttribute("data-open", "false");
-    expect(screen.queryByRole("button", { name: "Close navigation" })).not.toBeInTheDocument();
+    const scrim = () => document.querySelector(".qe-scrim");
+    expect(scrim()).not.toBeInTheDocument();
     for (const region of page()) expect(region).not.toHaveAttribute("inert");
 
     const open = async () => {
@@ -87,13 +88,18 @@ describe("navigation", () => {
     };
 
     await open();
-    await userEvent.click(screen.getByRole("button", { name: "Close navigation" }));
+    // The scrim is a mouse-only dismissal, hidden from assistive technology; Close and Escape serve keyboards.
+    expect(scrim()).toHaveAttribute("aria-hidden", "true");
+    await userEvent.click(scrim()!);
     closed();
     await open();
     await userEvent.click(nav().getByRole("button", { name: "Close" }));
     closed();
     await open();
     await userEvent.keyboard("{Escape}");
+    closed();
+    await open();
+    await userEvent.click(nav().getByRole("link", { name: "Overview" }));
     closed();
 
     await open();
@@ -102,14 +108,33 @@ describe("navigation", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Review" })).toHaveFocus();
     for (const region of page()) expect(region).not.toHaveAttribute("inert");
   });
-  it("closes the overlay when the window widens to the desktop layout", async () => {
+  it("does not reopen the overlay when browser Back returns to the route it was opened on", async () => {
+    renderApp("/");
+    const panel = screen.getByRole("navigation", { name: "Primary navigation" });
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    await userEvent.click(nav().getByRole("link", { name: "Applications" }));
+    await screen.findByRole("heading", { level: 1, name: "Applications" });
+    act(() => history.back());
+    await screen.findByRole("heading", { level: 1, name: "Overview" });
+    expect(panel).toHaveAttribute("data-open", "false");
+    expect(screen.getByRole("button", { name: "Menu" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("main")).not.toHaveAttribute("inert");
+  });
+  it("focuses the current page's link when the overlay opens", async () => {
+    renderApp("/applications");
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    expect(nav().getByRole("link", { name: "Applications" })).toHaveFocus();
+  });
+  it("closes the overlay when the window widens to the desktop layout and moves focus to the page", async () => {
     renderApp("/");
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     expect(screen.getByRole("main")).toHaveAttribute("inert");
-    // The test matchMedia stand-in notifies every listener, including the layout's desktop-width query.
-    act(() => systemTheme.change(true));
+    // jsdom has no layout, so report the Menu button as hidden the way the desktop CSS does.
+    HTMLElement.prototype.checkVisibility = () => false;
+    try { act(() => viewport.change(true)); } finally { delete (HTMLElement.prototype as Partial<HTMLElement>).checkVisibility; }
     expect(screen.getByRole("main")).not.toHaveAttribute("inert");
     expect(screen.getByRole("button", { name: "Menu" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("main")).toHaveFocus();
   });
   it("collapses to an icon rail that keeps link names, and remembers the choice", async () => {
     renderApp("/");
@@ -117,23 +142,26 @@ describe("navigation", () => {
     expect(root.dataset.sidebar).toBe("expanded");
     expect(nav().getByRole("link", { name: "Overview" })).not.toHaveAttribute("title");
 
-    await userEvent.click(screen.getByRole("button", { name: "Collapse navigation" }));
-    const expand = screen.getByRole("button", { name: "Expand navigation" });
-    expect(expand).toHaveAttribute("aria-expanded", "false");
-    expect(expand).toHaveAttribute("aria-controls", "primary-navigation");
+    const panelToggle = screen.getByRole("button", { name: "Navigation panel" });
+    expect(panelToggle).toHaveAttribute("aria-expanded", "true");
+    expect(panelToggle).toHaveAttribute("title", "Collapse navigation");
+    await userEvent.click(panelToggle);
+    expect(panelToggle).toHaveAttribute("aria-expanded", "false");
+    expect(panelToggle).toHaveAttribute("title", "Expand navigation");
+    expect(panelToggle).toHaveAttribute("aria-controls", "primary-navigation");
     expect(root.dataset.sidebar).toBe("collapsed");
     expect(window.localStorage.getItem("qe-sidebar")).toBe("collapsed");
     expect(nav().getByRole("link", { name: "Overview" })).toHaveAttribute("title", "Overview");
     expect(nav().getByRole("link", { name: /^Review 1\s?records waiting$/ })).toBeInTheDocument();
 
-    await userEvent.click(expand);
+    await userEvent.click(panelToggle);
     expect(root.dataset.sidebar).toBe("expanded");
-    expect(screen.getByRole("button", { name: "Collapse navigation" })).toHaveAttribute("aria-expanded", "true");
+    expect(panelToggle).toHaveAttribute("aria-expanded", "true");
   });
   it("starts collapsed from a stored preference", () => {
     window.localStorage.setItem("qe-sidebar", "collapsed");
     renderApp("/");
-    expect(screen.getByRole("button", { name: "Expand navigation" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("button", { name: "Navigation panel" })).toHaveAttribute("aria-expanded", "false");
     expect(document.documentElement.dataset.sidebar).toBe("collapsed");
   });
 });
