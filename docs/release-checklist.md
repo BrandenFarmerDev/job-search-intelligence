@@ -35,6 +35,7 @@ Implementation is in PR #1. Version one uses local Outlook import and the verifi
 - [x] Rules taxonomy, bounded parser-based Graph body fallback, private evidence/minimal AI input and zero paid usage defaults.
 - [x] Classic Outlook fallback uses a default job-search filter, bounded authenticated import, shared Graph identity, and stops accepting local bundles after Graph connects.
 - [x] Version-one local Outlook import and production Sheets read/replay have live evidence. Production records needing review remain owner work; future Graph acceptance is outside version one.
+- [x] October 10 local Outlook automation: service-token boundaries and Bitwarden verified; PRs #10/#11 deployed; bounded message/Sheets continuations completed; both stale runs closed; unchanged replay and on-demand Task Scheduler run passed with result 0. Daily 07:00 Pacific and delayed logon task enabled; server cron, Graph and AI remain disabled. See QA for evidence and future trigger limitations.
 
 ## Publication and operation
 
