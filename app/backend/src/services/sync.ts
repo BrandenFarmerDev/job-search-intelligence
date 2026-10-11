@@ -51,9 +51,9 @@ export async function ingestGraphPage(env: Env, folder: string, owner: string): 
   return { done: !page["@odata.nextLink"], count: page.value.length };
 }
 interface PendingMessage { id: string; immutable_id:string; subject: string; excerpt: string; conversation_id: string; occurred_at: string; content_hash: string; sent: number }
-export async function processMessages(env: Env, owner: string): Promise<number> {
+export async function processMessages(env: Env, owner: string, limit = 100): Promise<number> {
   await heartbeat(env.JOB_SEARCH_DB, owner);
-  const messages = (await env.JOB_SEARCH_DB.prepare("SELECT m.*,EXISTS(SELECT 1 FROM message_folders f WHERE f.message_id=m.id AND f.folder='sentitems') AS sent FROM message_references m WHERE available=1 AND (processed_hash IS NULL OR processed_hash<>content_hash) ORDER BY occurred_at LIMIT 100").all<PendingMessage>()).results;
+  const messages = (await env.JOB_SEARCH_DB.prepare("SELECT m.*,EXISTS(SELECT 1 FROM message_folders f WHERE f.message_id=m.id AND f.folder='sentitems') AS sent FROM message_references m WHERE available=1 AND (processed_hash IS NULL OR processed_hash<>content_hash) ORDER BY occurred_at LIMIT ?").bind(limit).all<PendingMessage>()).results;
   let connection:Awaited<ReturnType<typeof microsoftToken>>|undefined;
   for (const message of messages) {
     const candidates = message.conversation_id ? (await env.JOB_SEARCH_DB.prepare("SELECT DISTINCT a.id,a.company,a.role,a.requisition_id FROM applications a JOIN application_events e ON e.application_id=a.id JOIN message_references m ON e.source_id=m.id AND e.source='email' WHERE m.conversation_id=? AND a.excluded=0 LIMIT 2")
@@ -87,11 +87,12 @@ export async function syncSheets(env: Env, owner: string): Promise<{ changed: nu
   let changed = 0; let unchanged = 0;
   const seen = new Set<string>();
   for (const row of rows) {
-    await heartbeat(env.JOB_SEARCH_DB, owner);
     // Duplicate natural identities are quarantined individually; they never overwrite one another.
     const key = row.ambiguous ? `${row.key}:${row.hash}` : row.key; seen.add(key);
     const id = await digest(`${env.GOOGLE_SPREADSHEET_ID}:${key}`); const previous = existing.find((item) => item.row_key === key);
     if (previous?.row_hash === row.hash && previous.processed_hash === row.hash) { unchanged++; continue; }
+    // Unchanged rows cost no D1 calls; the lease is confirmed only before a write, keeping the step within its subrequest budget.
+    await heartbeat(env.JOB_SEARCH_DB, owner);
     await env.JOB_SEARCH_DB.batch([
       env.JOB_SEARCH_DB.prepare("INSERT INTO sheet_rows VALUES(?,?,?,?,?,1,?,NULL) ON CONFLICT(spreadsheet_id,row_key) DO UPDATE SET row_hash=excluded.row_hash,snapshot=excluded.snapshot,available=1,updated_at=excluded.updated_at").bind(id, env.GOOGLE_SPREADSHEET_ID, key, row.hash, row.snapshot, now),
       env.JOB_SEARCH_DB.prepare("INSERT OR IGNORE INTO sheet_versions VALUES(?,?,?,?,?)").bind(crypto.randomUUID(), id, row.hash, row.snapshot, now),

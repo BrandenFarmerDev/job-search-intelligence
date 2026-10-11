@@ -194,7 +194,7 @@ function Wait-SyncRun([string]$Id, [DateTime]$Until) {
     foreach ($run in @($runs)) {
       if ($run -and (Get-Prop $run 'id') -eq $Id) {
         $status = [string](Get-Prop $run 'status')
-        if ($status -in 'completed', 'failed', 'skipped_overlap') { return $status }
+        if ($status -in 'completed', 'continued', 'failed', 'skipped_overlap') { return $status }
       }
     }
     if ([DateTime]::UtcNow.AddSeconds($script:SyncPollSeconds) -gt $Until) { return 'pending' }
@@ -292,6 +292,8 @@ function Invoke-Run {
       $outcome = Wait-SyncRun $id $deadline
       Write-Log "sync=$outcome attempt=$attempt"
       if ($outcome -eq 'completed') { Write-Log 'result=completed exit=0'; return 0 }
+      # The server drains a large backlog in follow-on runs; the upload itself is done.
+      if ($outcome -eq 'continued') { Write-Log 'result=completed_continuing exit=0'; return 0 }
       if ($outcome -eq 'failed') { Stop-Run 7 'sync_failed' }
       if ($outcome -eq 'pending') { Write-Log 'result=pending exit=0'; return 0 }
       & $script:SleepFn 60
