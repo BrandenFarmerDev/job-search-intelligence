@@ -57,6 +57,15 @@ it("treats a replayed finish step as already recorded instead of a lost lease",a
  const step={do:vi.fn(async(name:string,_options:unknown,callback:()=>Promise<unknown>)=>{const result=await callback();if(name==="finish")return callback();return result;})} as unknown as WorkflowStep;
  await expect(instance.run(event,step)).resolves.toMatchObject({processed:0});expect((await db.prepare("SELECT status FROM sync_runs WHERE id='replay'").first())?.status).toBe("completed");close();
 });
+it("continues changed sheet rows with the lease released and retains only after the final slice",async()=>{
+ const {env,db,close}=fixture();env.MICROSOFT_GRAPH_ENABLED="false";vi.mocked(sync.processMessages).mockResolvedValue(0);
+ vi.mocked(sync.syncSheets).mockResolvedValueOnce({changed:15,unchanged:27,missing:0,more:true}).mockResolvedValue({changed:1,unchanged:42,missing:2});
+ const first=workflow(env,"sheet-first");await first.instance.run(first.event,first.step);
+ expect(sync.syncSheets).toHaveBeenCalledWith(env,"sheet-first",15);expect(sync.retain).not.toHaveBeenCalled();
+ expect((await db.prepare("SELECT status FROM sync_runs WHERE id='sheet-first'").first())?.status).toBe("continued");expect(await db.prepare("SELECT owner FROM sync_locks").first()).toBeNull();expect(env.JOB_SYNC.create).toHaveBeenCalledWith({params:{trigger:"manual",continuation:1}});
+ const last=workflow(env,"sheet-last",1);await last.instance.run(last.event,last.step);expect(sync.retain).toHaveBeenCalledTimes(1);expect((await db.prepare("SELECT status FROM sync_runs WHERE id='sheet-last'").first())?.status).toBe("completed");
+ vi.mocked(sync.syncSheets).mockResolvedValue({changed:15,unchanged:0,missing:0,more:true});const capped=workflow(env,"sheet-capped",50);await expect(capped.instance.run(capped.event,capped.step)).rejects.toThrow();expect((await db.prepare("SELECT error_code FROM sync_runs WHERE id='sheet-capped'").first())?.error_code).toBe("processing_limit_resume_required");close();
+});
 it("never repopulates deleted data from queued or scheduled syncs until explicit reconnect",async()=>{
  const {env,db,close}=fixture();await db.prepare("INSERT INTO app_metadata VALUES('sync_paused','true')").run();const paused=workflow(env,"queued-before-delete");expect(await paused.instance.run(paused.event,paused.step)).toEqual({status:"skipped_paused"});expect(sync.ingestGraphPage).not.toHaveBeenCalled();expect(sync.syncSheets).not.toHaveBeenCalled();expect(await db.prepare("SELECT id FROM sync_runs").first()).toBeNull();close();
 });
