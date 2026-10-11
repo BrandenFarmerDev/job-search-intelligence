@@ -54,6 +54,8 @@ Owner decision, October 10, 2026 (details in [local Outlook fallback](outlook-lo
 4. `SYNC_ENABLED` stays `false`, so the server cron does not run; `AI_ENABLED=false`, `AI_DAILY_CALL_LIMIT=0` and `MICROSOFT_GRAPH_ENABLED=false` are unchanged.
 5. Revocation: delete the token (or its policy) in Zero Trust, unset the Worker secret, and unregister the task.
 
+Live acceptance completed October 10 after PRs #10 and #11 deployed. The larger tracker required bounded Sheets slices as well as bounded message classification; all follow-on runs completed. Bitwarden holds the verified client ID/secret pair. The installed script replay and an on-demand Task Scheduler launch preserved message/application/event/tracker counts, and the task is now enabled for 07:00 Pacific and ten minutes after logon. See [QA evidence](qa.md#production-verification-of-pr-10--october-10-2026) for versions, counts and the guarded recovery of the stopped Workflow's lease. This PC must have the owner's Windows session signed in for Outlook COM.
+
 ## GitHub administration
 
 Repository: `BrandenFarmerDev/job-search-intelligence`. Main ruleset `24341809` was copied from portfolio `24193519`: PR required, updated branch, required `Quality gates` and `Analyze JavaScript and TypeScript`, no force push/deletion or bypass.
@@ -79,6 +81,8 @@ Run `npm ci`, `npm run quality`, named dry runs and release checklist before dep
 GitHub workflow checks isolated database IDs/exact origins/dedicated project, deploys Worker before Pages, then verifies **unauthenticated Access login challenges** on the custom site/API. It does not falsely treat an Access redirect as a passing application health response. Authenticated browser/application smoke remains a release requirement.
 
 No destructive DB rollback is automated. Record prior Worker/Pages versions, roll back compatible code via Cloudflare deployment controls, and use D1 Time Travel/manual recovery only under an explicit reviewed recovery plan. Preserve backwards-compatible contracts during Worker-before-Pages deployment.
+
+If a Workflow exhausts its request budget before recording failure, its history row and one-hour lease can remain. Wait for lease expiry, or first verify in Cloudflare that the exact instance is terminal (**Errored** or **Terminated**) and cannot resume. An operator can then expire only that instance's matching `sync_locks` row using an update guarded by both the observed owner and expiry; never expire an active instance or clear all locks. The next normal sync closes its stale history row as `sync_interrupted` and resumes the durable row checkpoints.
 
 ## October 3 deployment follow-up
 
