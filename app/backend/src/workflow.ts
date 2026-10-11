@@ -9,6 +9,7 @@ const retry = { retries: { limit: 3, delay: retryDelay, backoff: "exponential" a
 // and step retries share that budget, so an instance classifies a bounded slice and hands the remainder to a fresh instance.
 export const BATCH_MESSAGES = 20;
 export const BATCHES_PER_INSTANCE = 2;
+export const SHEET_ROWS_PER_INSTANCE = 15;
 export const MAX_CONTINUATIONS = 50;
 export class JobSyncWorkflow extends WorkflowEntrypoint<Env, SyncParameters> {
   async run(event: WorkflowEvent<SyncParameters>, step: WorkflowStep) {
@@ -45,12 +46,13 @@ export class JobSyncWorkflow extends WorkflowEntrypoint<Env, SyncParameters> {
         counters.processed += count;
         more = count >= BATCH_MESSAGES;
       }
-      if (more && continuation > MAX_CONTINUATIONS) throw new Problem(409, "processing_limit_resume_required");
       if (!more) {
-        const sheet = await step.do("sync sheet", retry, () => syncSheets(this.env, id));
+        const sheet = await step.do("sync sheet", retry, () => syncSheets(this.env, id, SHEET_ROWS_PER_INSTANCE));
         counters.changedRows = sheet.changed; counters.unchangedRows = sheet.unchanged; counters.missingRows = sheet.missing;
-        await step.do("retention", retry, () => retain(this.env.JOB_SEARCH_DB));
+        more = sheet.more ?? false;
+        if (!more) await step.do("retention", retry, () => retain(this.env.JOB_SEARCH_DB));
       }
+      if (more && continuation > MAX_CONTINUATIONS) throw new Problem(409, "processing_limit_resume_required");
       // "continued" keeps an unfinished slice out of the last successful sync time shown to the owner.
       await step.do("finish", retry, async () => {
         // A replay after a committed finish must not fail on the already released lease.

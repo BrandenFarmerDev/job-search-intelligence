@@ -55,6 +55,19 @@ it("quarantines duplicate sheet identities and safely retries an unfinished row"
  const {env,db,close}=fixture();env.GOOGLE_SERVICE_ACCOUNT_JSON="configured";await acquireLease(db,"run");vi.mocked(fetchSheet).mockResolvedValue(await parseRows([...sheetData,sheetData[1]]));await syncSheets(env,"run");expect((await db.prepare("SELECT state FROM reconciliation_matches").first())?.state).toBe("needs_review");
  await db.prepare("UPDATE sheet_rows SET processed_hash=NULL").run();expect((await syncSheets(env,"run")).changed).toBeGreaterThan(0);close();
 });
+it("checkpoints bounded sheet slices, defers removals and replays without duplicate evidence",async()=>{
+ const {env,db,close}=fixture();env.GOOGLE_SERVICE_ACCOUNT_JSON="configured";await acquireLease(db,"run");
+ vi.mocked(fetchSheet).mockResolvedValue(await parseRows(sheetData));await syncSheets(env,"run");await db.prepare("DELETE FROM sync_state WHERE provider='sheets'").run();
+ const rows=[sheetHeaders,...Array.from({length:5},(_,index)=>[`SyntheticCo${index}`,"Engineer",`req${index}`,`https://jobs.example.com/${index}`,"2026-09-01","Applied"])];
+ vi.mocked(fetchSheet).mockResolvedValue(await parseRows(rows));
+ expect(await syncSheets(env,"run",2)).toEqual({changed:2,unchanged:0,missing:0,more:true});
+ expect((await db.prepare("SELECT available FROM sheet_rows ORDER BY rowid LIMIT 1").first())?.available).toBe(1);expect(await db.prepare("SELECT updated_at FROM sync_state WHERE provider='sheets'").first()).toBeNull();
+ expect(await syncSheets(env,"run",2)).toEqual({changed:2,unchanged:2,missing:0,more:true});
+ expect(await syncSheets(env,"run",2)).toEqual({changed:1,unchanged:4,missing:1});
+ expect((await db.prepare("SELECT COUNT(*) AS count FROM sheet_rows WHERE available=1").first())?.count).toBe(5);expect(await db.prepare("SELECT updated_at FROM sync_state WHERE provider='sheets'").first()).not.toBeNull();
+ const before=(await db.prepare("SELECT id FROM application_events").all()).results.length;
+ expect(await syncSheets(env,"run",2)).toEqual({changed:0,unchanged:5,missing:0});expect((await db.prepare("SELECT id FROM application_events").all()).results).toHaveLength(before);close();
+});
 it("expires excerpts and transient run/auth history without deleting durable evidence",async()=>{
  const {env,db,close}=fixture();provider();await acquireLease(db,"run");vi.mocked(graphPage).mockResolvedValue({value:[{...message,receivedDateTime:"2020-01-01"}],"@odata.deltaLink":cursor()});await ingestGraphPage(env,"inbox","run");
  await db.prepare("INSERT INTO sync_runs(id,trigger,status,started_at,finished_at) VALUES('old','manual','completed','2020','2020')").run();await db.prepare("INSERT INTO oauth_states VALUES('old','owner','verifier',0)").run();await retain(db);

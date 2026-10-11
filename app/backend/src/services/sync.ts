@@ -75,7 +75,7 @@ export async function processMessages(env: Env, owner: string, limit = 100): Pro
   }
   return messages.length;
 }
-export async function syncSheets(env: Env, owner: string): Promise<{ changed: number; unchanged: number; missing: number }> {
+export async function syncSheets(env: Env, owner: string, limit = 15): Promise<{ changed: number; unchanged: number; missing: number; more?: boolean }> {
   await heartbeat(env.JOB_SEARCH_DB, owner);
   if (!env.GOOGLE_SERVICE_ACCOUNT_JSON) return { changed: 0, unchanged: 0, missing: 0 };
   const maintenance = await env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='sync_paused'").first<{value:string}>();
@@ -84,13 +84,16 @@ export async function syncSheets(env: Env, owner: string): Promise<{ changed: nu
   if (paused?.value === "true") return { changed: 0, unchanged: 0, missing: 0 };
   const rows = await fetchSheet(env); const now = new Date().toISOString();
   const existing = (await env.JOB_SEARCH_DB.prepare("SELECT id,row_key,row_hash,processed_hash FROM sheet_rows WHERE spreadsheet_id=? AND available=1").bind(env.GOOGLE_SPREADSHEET_ID).all<{ id: string; row_key: string; row_hash: string; processed_hash: string | null }>()).results;
-  let changed = 0; let unchanged = 0;
+  let changed = 0; let unchanged = 0; let more = false;
   const seen = new Set<string>();
   for (const row of rows) {
     // Duplicate natural identities are quarantined individually; they never overwrite one another.
     const key = row.ambiguous ? `${row.key}:${row.hash}` : row.key; seen.add(key);
-    const id = await digest(`${env.GOOGLE_SPREADSHEET_ID}:${key}`); const previous = existing.find((item) => item.row_key === key);
+    const previous = existing.find((item) => item.row_key === key);
     if (previous?.row_hash === row.hash && previous.processed_hash === row.hash) { unchanged++; continue; }
+    // Checkpoints from earlier slices make a fresh fetch resumable without repeating completed writes.
+    if (changed >= limit) { more = true; continue; }
+    const id = await digest(`${env.GOOGLE_SPREADSHEET_ID}:${key}`);
     // Unchanged rows cost no D1 calls; the lease is confirmed only before a write, keeping the step within its subrequest budget.
     await heartbeat(env.JOB_SEARCH_DB, owner);
     await env.JOB_SEARCH_DB.batch([
@@ -101,6 +104,8 @@ export async function syncSheets(env: Env, owner: string): Promise<{ changed: nu
     await env.JOB_SEARCH_DB.prepare("UPDATE sheet_rows SET processed_hash=? WHERE id=? AND row_hash=?").bind(row.hash, id, row.hash).run();
     changed++;
   }
+  // Missing rows and the successful provider checkpoint are finalized only after all changed rows are reconciled.
+  if (more) return { changed, unchanged, missing: 0, more: true };
   const missing = existing.filter((item) => !seen.has(item.row_key));
   if (missing.length) await env.JOB_SEARCH_DB.batch(missing.map((item) => env.JOB_SEARCH_DB.prepare("UPDATE sheet_rows SET available=0,updated_at=? WHERE id=?").bind(now, item.id)));
   await env.JOB_SEARCH_DB.prepare("INSERT INTO sync_state VALUES('sheets','tracker',NULL,?) ON CONFLICT(provider,scope) DO UPDATE SET updated_at=excluded.updated_at").bind(now).run();
