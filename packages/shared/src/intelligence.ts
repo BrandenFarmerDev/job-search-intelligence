@@ -30,4 +30,13 @@ export const applicationSorts = ["applied_desc", "applied_asc", "company", "stat
 export type ApplicationSort = typeof applicationSorts[number];
 export interface ApplicationListResponse { applications: ApplicationRecord[]; page: number; pageSize: number; total: number; hasMore: boolean }
 export interface SyncRun { id: string; status: string; started_at: string; finished_at: string | null; error_code: string | null; counters: string; trigger?: string }
+export interface GmailConnectionStatus {
+  configured: boolean; connected: boolean; accountEmail: string | null;
+  status: "disconnected" | "connected" | "reconnect_required" | "setup_required";
+  labels: { ready: boolean; missing: string[] };
+  lastRecentPollAt: string | null; lastSweepAt: string | null;
+  pending: number; review: number; coverageWarning: string | null;
+}
+export interface GmailSyncRequest { action: "sync" | "resume" }
+export interface GmailSyncResponse { queued: true; runId: string }
 export function isEventType(value: unknown): value is EventType { return typeof value === "string" && eventTypes.some((type) => type === value); }

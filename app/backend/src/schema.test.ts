@@ -9,7 +9,7 @@ it("normalizes the old status default for existing and new databases", async () 
   await db.prepare("INSERT INTO applications(id,company,role,applied_at,status,source,updated_at) VALUES('legacy','ExampleCo','Engineer','2026-09-30','submitted','manual','2026-09-30')").run();
   const rows = (await db.prepare("SELECT status FROM applications ORDER BY id").all<{ status: string }>()).results;
   expect(rows.map((row) => row.status)).toEqual(["application_submitted", "application_submitted"]);
-  expect((await db.prepare("SELECT value FROM app_metadata WHERE key='schema_version'").first<{ value: string }>())?.value).toBe("4");
+  expect((await db.prepare("SELECT value FROM app_metadata WHERE key='schema_version'").first<{ value: string }>())?.value).toBe("5");
   close();
 });
 

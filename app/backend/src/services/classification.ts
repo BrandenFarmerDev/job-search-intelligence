@@ -44,7 +44,7 @@ export function validateAi(value: unknown): Decision | null {
   // Model predictions remain suggestions until a person reviews them.
   return { type: item.type, confidence: item.confidence, reason: "AI suggestion; review required", needsReview: true };
 }
-export async function decide(env: Env, sourceId: string, subject: string, excerpt: string, sent = false): Promise<Decision> {
+export async function decide(env: Env, sourceId: string, subject: string, excerpt: string, sent = false, guardedWrite?: (statement:D1PreparedStatement)=>Promise<void>): Promise<Decision> {
   const key = await digest(JSON.stringify(["rules-v1", env.AI_MODEL, subject, excerpt, sent]));
   const cached = await env.JOB_SEARCH_DB.prepare("SELECT decision FROM classification_decisions WHERE cache_key=?").bind(key).first<{ decision: string }>();
   if (cached) return JSON.parse(cached.decision) as Decision;
@@ -65,8 +65,9 @@ export async function decide(env: Env, sourceId: string, subject: string, excerp
       } catch { /* A failed/invalid suggestion never blocks deterministic ingestion. Reservation remains charged. */ }
     }
   }
-  await env.JOB_SEARCH_DB.prepare("INSERT OR IGNORE INTO classification_decisions VALUES(?,?,?,?,?,NULL,?)")
-    .bind(crypto.randomUUID(), sourceId, key, JSON.stringify(decision), method, new Date().toISOString()).run();
+  const decisionWrite=env.JOB_SEARCH_DB.prepare("INSERT OR IGNORE INTO classification_decisions VALUES(?,?,?,?,?,NULL,?)")
+    .bind(crypto.randomUUID(), sourceId, key, JSON.stringify(decision), method, new Date().toISOString());
+  if(guardedWrite)await guardedWrite(decisionWrite);else await decisionWrite.run();
   return decision;
 }
 export function extractFields(subject: string, excerpt: string) {

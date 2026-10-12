@@ -7,12 +7,13 @@ import { acquireLease } from "../services/sync";
 import { dateValue } from "../services/sheets";
 import { ingestLocalOutlookBatch } from "../services/local-outlook";
 import { dataGeneration } from "../services/data-generation";
+import { beginGmail, completeGmail, gmailStatus } from "../services/gmail";
 
 // Request values only select a key here; the SQL fragments are fixed. The legacy `date` key maps to newest-applied.
 const applicationOrder = new Map([["applied_desc", "applied_at DESC"], ["date", "applied_at DESC"], ["applied_asc", "applied_at ASC"], ["company", "company COLLATE NOCASE ASC"], ["status", "status ASC"], ["updated", "updated_at DESC"]]);
 export async function intelligenceRoute(request: Request, env: Env, principal: Principal): Promise<Response> {
   const path = new URL(request.url).pathname;
-  const mutation = !["GET","HEAD"].includes(request.method) || path.endsWith("/connections/microsoft/callback");
+  const mutation = !["GET","HEAD"].includes(request.method) || path.endsWith("/connections/microsoft/callback") || path.endsWith("/connections/gmail/callback");
   if (!mutation || path.endsWith("/sync/run")) return route(request,env,principal);
   const lock=crypto.randomUUID();
   if (!(await acquireLease(env.JOB_SEARCH_DB,lock,true))) throw new Problem(409,"sync_running");
@@ -63,10 +64,49 @@ async function route(request: Request, env: Env, principal: Principal): Promise<
     const view = await dashboard(env);
     return Response.json({ ...view.connections, historicalStart: env.HISTORICAL_START_DATE || null, aiEnabled: env.AI_ENABLED === "true", aiDailyLimit: Number(env.AI_DAILY_CALL_LIMIT) });
   }
+  if (path === "/connections/gmail" && request.method === "GET") return Response.json(await gmailStatus(env));
+  if (path === "/connections/gmail" && request.method === "DELETE") {
+    const generation=crypto.randomUUID();const now=new Date().toISOString();
+    await db.batch([
+      db.prepare("DELETE FROM gmail_connections"),db.prepare("DELETE FROM gmail_oauth_states"),db.prepare("DELETE FROM gmail_candidates"),db.prepare("DELETE FROM gmail_checkpoints"),db.prepare("DELETE FROM gmail_cooldowns"),
+      db.prepare("DELETE FROM app_metadata WHERE key='gmail_label_ids'"),db.prepare("INSERT INTO app_metadata(key,value) VALUES('gmail_connection_generation',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(generation),
+      db.prepare("INSERT INTO app_metadata(key,value) VALUES('gmail_sync_paused','true') ON CONFLICT(key) DO UPDATE SET value='true'"),db.prepare("INSERT INTO app_metadata(key,value) VALUES('mail_source','none') ON CONFLICT(key) DO UPDATE SET value='none'"),
+      db.prepare("INSERT INTO app_metadata(key,value) VALUES('gmail_disconnected_at',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(now),
+    ]);
+    return Response.json({disconnected:true,retainedEvidence:true});
+  }
+  if (path === "/connections/gmail/start" && request.method === "POST") return beginGmail(env, owner);
+  if (path === "/connections/gmail/callback" && request.method === "GET") {
+    try { return await completeGmail(request,env,owner); }
+    catch {
+      return new Response(null,{status:303,headers:{Location:`${env.ALLOWED_ORIGIN}?gmail=error`,"Cache-Control":"no-store","Set-Cookie":"job_gmail_oauth=; Path=/api/job-intelligence/connections/gmail; HttpOnly; Secure; SameSite=Lax; Max-Age=0"}});
+    }
+  }
+  if (path === "/gmail/sync/run" && request.method === "POST") {
+    if (automated) throw new Problem(403,"owner_required");
+    const body=await readJson(request);if(body.action!=="sync"&&body.action!=="resume")throw new Problem(400,"invalid_gmail_sync_action");
+    const connection=await db.prepare("SELECT id,status FROM gmail_connections ORDER BY connected_at DESC LIMIT 1").first<{id:string;status:string}>();
+    if(!connection||connection.status!=="connected")throw new Problem(409,"gmail_connection_required");
+    if(env.GMAIL_ENABLED!=="true"||env.GMAIL_SYNC_ENABLED!=="true"||env.MAIL_SOURCE!=="gmail")throw new Problem(409,"gmail_sync_not_accepted");
+    if((await db.prepare("SELECT value FROM app_metadata WHERE key='sync_paused'").first<{value:string}>())?.value==="true")throw new Problem(409,"sync_paused");
+    const current=await db.prepare("SELECT value FROM app_metadata WHERE key='mail_source'").first<{value:string}>();
+    if(body.action==="sync"&&current?.value!=="gmail")throw new Problem(409,"gmail_resume_required");
+    if(body.action==="sync"&&(await db.prepare("SELECT value FROM app_metadata WHERE key='gmail_sync_paused'").first<{value:string}>())?.value!=="false")throw new Problem(409,"gmail_sync_paused");
+    if(body.action==="resume")await db.batch([
+      db.prepare("INSERT INTO app_metadata(key,value) VALUES('mail_source','gmail') ON CONFLICT(key) DO UPDATE SET value='gmail'"),
+      db.prepare("INSERT INTO app_metadata(key,value) VALUES('gmail_sync_paused','false') ON CONFLICT(key) DO UPDATE SET value='false'")
+    ]);
+    const generation=await dataGeneration(db);const instance=await env.JOB_SYNC.create({params:{trigger:"manual",expectedGeneration:generation,mailSource:"gmail",connectionGeneration:(await db.prepare("SELECT value FROM app_metadata WHERE key='gmail_connection_generation'").first<{value:string}>())?.value||""}});
+    return Response.json({queued:true,runId:instance.id},{status:202});
+  }
   const graphEnabled = env.MICROSOFT_GRAPH_ENABLED === "true";
   if (path.startsWith("/connections/microsoft") && !graphEnabled) throw new Problem(404, "route_not_found");
   if (path === "/connections/microsoft/start" && request.method === "POST") return beginMicrosoft(env, owner);
-  if (path === "/local-outlook/import" && request.method === "POST") return Response.json(await ingestLocalOutlookBatch(env, await readJson(request, 262144), automated, request.headers.get("X-Job-Data-Generation")));
+  if (path === "/local-outlook/import" && request.method === "POST") {
+    const source=await db.prepare("SELECT value FROM app_metadata WHERE key='mail_source'").first<{value:string}>();
+    if(source?.value==="gmail"||env.MAIL_SOURCE==="gmail")throw new Problem(409,"legacy_mail_source_retired");
+    return Response.json(await ingestLocalOutlookBatch(env, await readJson(request, 262144), automated, request.headers.get("X-Job-Data-Generation")));
+  }
   if (path === "/connections/microsoft/callback" && request.method === "GET") {
     return completeMicrosoft(request,env,owner);
   }
@@ -88,7 +128,10 @@ async function route(request: Request, env: Env, principal: Principal): Promise<
   if (path === "/sync/run" && request.method === "POST") {
     const generation = await dataGeneration(db);
     if ((await db.prepare("SELECT value FROM app_metadata WHERE key='sync_paused'").first<{value:string}>())?.value === "true") throw new Problem(409,"reconnect_sources_to_resume");
-    const instance = await env.JOB_SYNC.create({ params: { trigger: automated ? "automation" : "manual", expectedGeneration: generation } }); return Response.json({ id: instance.id }, { status: 202 });
+    const source=(await db.prepare("SELECT value FROM app_metadata WHERE key='mail_source'").first<{value:string}>())?.value;
+    const connectionGeneration=source==="gmail"?(await db.prepare("SELECT value FROM app_metadata WHERE key='gmail_connection_generation'").first<{value:string}>())?.value||"":"";
+    if(source==="gmail"&&(env.MAIL_SOURCE!=="gmail"||env.GMAIL_ENABLED!=="true"||env.GMAIL_SYNC_ENABLED!=="true"))throw new Problem(409,"gmail_sync_not_accepted");
+    const instance = await env.JOB_SYNC.create({ params: { trigger: automated ? "automation" : "manual", expectedGeneration: generation,mailSource:source==="gmail"?"gmail":"none",connectionGeneration } }); return Response.json({ id: instance.id }, { status: 202 });
   }
   if (["/reconciliation", "/review"].includes(path) && request.method === "GET") {
     const rows = await db.prepare("SELECT r.*,m.subject,m.web_link,s.snapshot,COALESCE(m.available,s.available,0) AS available FROM reconciliation_matches r LEFT JOIN message_references m ON r.source='email' AND r.source_id=m.id LEFT JOIN sheet_rows s ON r.source='sheet' AND r.source_id=s.id WHERE r.state IN ('needs_review','conflict','email_only','sheet_only') ORDER BY r.id LIMIT 100").all();
@@ -165,8 +208,8 @@ async function route(request: Request, env: Env, principal: Principal): Promise<
   if (path === "/reprocess" && request.method === "POST") { await db.prepare("UPDATE message_references SET processed_hash=NULL WHERE excerpt IS NOT NULL AND available=1").run(); return Response.json({ queued: true }); }
   if (path === "/data" && request.method === "DELETE") {
     const body = await readJson(request); if (body.confirmation !== "DELETE ALL JOB DATA") throw new Problem(400, "confirmation_required");
-    const tables = ["follow_up_tasks", "manual_overrides", "reconciliation_matches", "application_events", "classification_decisions", "message_folders", "message_references", "sheet_versions", "sheet_rows", "applications", "organizations", "connections", "oauth_states", "sync_state", "sync_runs", "ai_usage"];
-    await db.batch([...tables.map((table) => db.prepare(`DELETE FROM ${table}`)),db.prepare("DELETE FROM app_metadata WHERE key IN ('local_outlook_last_import','local_outlook_last_automated_import')"),db.prepare("INSERT INTO app_metadata(key,value) VALUES('job_data_generation',lower(hex(randomblob(16)))) ON CONFLICT(key) DO UPDATE SET value=excluded.value"),db.prepare("INSERT INTO app_metadata VALUES('sync_paused','true') ON CONFLICT(key) DO UPDATE SET value='true'"),db.prepare("INSERT INTO app_metadata VALUES('sheets_paused','true') ON CONFLICT(key) DO UPDATE SET value='true'")]); return Response.json({ deleted: true });
+    const tables = ["follow_up_tasks", "manual_overrides", "reconciliation_matches", "application_events", "classification_decisions", "message_folders", "message_references", "sheet_versions", "sheet_rows", "applications", "organizations", "connections", "oauth_states", "gmail_connections", "gmail_oauth_states", "gmail_message_instances", "gmail_candidates", "gmail_checkpoints", "gmail_cooldowns", "sync_state", "sync_runs", "ai_usage"];
+    await db.batch([...tables.map((table) => db.prepare(`DELETE FROM ${table}`)),db.prepare("DELETE FROM app_metadata WHERE key IN ('local_outlook_last_import','local_outlook_last_automated_import','gmail_label_ids','gmail_disconnected_at')"),db.prepare("INSERT INTO app_metadata(key,value) VALUES('job_data_generation',lower(hex(randomblob(16)))) ON CONFLICT(key) DO UPDATE SET value=excluded.value"),db.prepare("INSERT INTO app_metadata(key,value) VALUES('gmail_connection_generation',lower(hex(randomblob(16)))) ON CONFLICT(key) DO UPDATE SET value=excluded.value"),db.prepare("INSERT INTO app_metadata(key,value) VALUES('mail_source','none') ON CONFLICT(key) DO UPDATE SET value='none'"),db.prepare("INSERT INTO app_metadata(key,value) VALUES('gmail_sync_paused','true') ON CONFLICT(key) DO UPDATE SET value='true'"),db.prepare("INSERT INTO app_metadata VALUES('sync_paused','true') ON CONFLICT(key) DO UPDATE SET value='true'"),db.prepare("INSERT INTO app_metadata VALUES('sheets_paused','true') ON CONFLICT(key) DO UPDATE SET value='true'")]); return Response.json({ deleted: true });
   }
   throw new Problem(404, "route_not_found");
 }

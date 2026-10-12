@@ -1,6 +1,20 @@
 # Release checklist
 
-Implementation is in PR #1. Version one uses local Outlook import and the verified Sheets reader; future Graph and optional AI acceptance are separate. Section 21 of the architecture plan is the canonical todo list. Check each item only with evidence for the release being reviewed.
+October 11 Gmail pivot: historical checked boxes below are evidence for their named earlier releases only. The owner now authorizes the Gmail implementation, merge and deployment. Native Gmail labels/filters and the OAuth application are configured, while Live redirect, replacement credentials, consent and production provider acceptance remain open. Windows uploads stay disabled with maintenance enabled. Graph, AI and server scheduling remain disabled until their own gates. The [routing plan](gmail-routing-plan.md), [ingestion/cutover plan](gmail-ingestion-plan.md), [independent planning review](gmail-plans-qa.md) and [cutover record](gmail-cutover.md) define the evidence.
+
+## Gmail pivot gates
+
+- [x] Gmail root/category/Review labels and fourteen label-only filters configured; thirteen exact synthetic fixtures proved inclusion/category/ambiguity/unrelated controls and were removed from application eligibility.
+- [x] Dedicated Google project and Gmail API configured with exact `gmail.readonly`; quotas verified and no billing account linked.
+- [x] Additive migration, personal OAuth, bounded phase/checkpoint/retry/fence implementation and Gmail Sources UI implemented with preview/production dry runs.
+- [ ] Replacement OAuth client stored as protected Worker secrets; exposed first client deleted.
+- [ ] Live selective Outlook redirect saved with loop exceptions; source-copy retention and global forwarding state verified.
+- [ ] Owner OAuth consent, refresh, revocation/reconnect, labels/Spam/MIME/attachment controls and bounded failure recovery accepted against the real provider.
+- [ ] Gap-only historical import from `2026-09-30T07:00:00Z`, unchanged replay and preservation of the 492-message/179-application/192-event/239-tracker-row baseline verified.
+- [ ] Final Sol high QA, one frozen `npm run quality`, exact-head CI/CodeQL, merge and production deployment complete.
+- [ ] Beyond-seven-day refresh and closed-Outlook delivery observed before schedule activation and legacy task/script retirement.
+
+Historical version-one implementation was reviewed in PR #1. The Gmail pivot is PR #15 and supersedes local Outlook ingestion after its acceptance gates. The verified Sheets reader remains separate; Graph and optional AI acceptance remain disabled. Section 21 of the architecture plan is the historical tracker, while the Gmail plans and cutover record govern this release. Check each item only with evidence for the release being reviewed.
 
 ## Automated and security gates
 

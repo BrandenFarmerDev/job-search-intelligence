@@ -7,87 +7,42 @@ import { calls, renderApp, violations } from "../test/render";
 
 vi.mock("../lib/api", async (importOriginal) => ({ ...await importOriginal<typeof import("../lib/api")>(), intelligenceApi: vi.fn() }));
 
-const message = { immutableId: "a".repeat(64), folder: "inbox", subject: "Application", sender: "jobs@example.com", excerpt: "Thanks", occurredAt: "2026-10-01T00:00:00Z", conversationId: "c", internetMessageId: "m", revision: "r" };
-const bundle = (overrides: Record<string, unknown> = {}, count = 41) => ({
-  format: "job-search-intelligence.outlook-com.v1", accountId: "b".repeat(64), exportedAt: "2026-10-01T01:00:00Z", since: "2026-09-30T07:00:00Z",
-  summary: { truncated: false }, messages: Array(count).fill(message), ...overrides,
-});
-const exportFile = (content: unknown) => new File([typeof content === "string" ? content : JSON.stringify(content)], "outlook.json", { type: "application/json" });
-const upload = async (file: File) => { await userEvent.upload(await screen.findByLabelText("Import local Outlook JSON"), file); };
-const imports = () => calls("/local-outlook/import");
 const ready = () => screen.findByRole("heading", { level: 2, name: "Connections" });
 const dashboardWith = (change: (state: ReturnType<typeof makeState>) => void) => { const state = makeState(); change(state); return state; };
 
-describe("local Outlook import", () => {
-  it("uploads in batches of 40, shows progress, then starts classification", async () => {
-    let finishFirst: (value: unknown) => void = () => {};
-    const first = new Promise((done) => { finishFirst = done; });
-    let seen = 0;
-    renderApp("/sources", makeState(), (path) => { if (path === "/local-outlook/import" && seen++ === 0) return first; });
-    await upload(exportFile(bundle()));
-    expect(await screen.findByText("Uploading batch 1 of 2")).toBeInTheDocument();
-    finishFirst({ imported: 40 });
-    expect(await screen.findByText("Imported 41 local Outlook messages. Classification is running.")).toBeInTheDocument();
-    expect(imports().map(([, , body]) => (body as { messages: unknown[] }).messages.length)).toEqual([40, 1]);
-    expect(imports()[0][2]).toMatchObject({ format: "job-search-intelligence.outlook-com.v1", accountId: "b".repeat(64) });
-    expect(intelligenceApi).toHaveBeenCalledWith("/sync/run", "POST");
-    expect(screen.queryByText(/Uploading batch/)).not.toBeInTheDocument();
-  });
-  it("blocks a truncated export before anything is uploaded", async () => {
-    renderApp("/sources");
-    await upload(exportFile(bundle({ summary: { truncated: true } })));
-    expect(await screen.findByText(/This export reached its message cap\. Export a narrower date range and try again\./)).toBeInTheDocument();
-    expect(imports()).toHaveLength(0);
-    expect(calls("/sync/run")).toHaveLength(0);
-  });
-  it.each([
-    ["not an object", "[]"],
-    ["messages missing", JSON.stringify(bundle({ messages: undefined }))],
-    ["too many messages", JSON.stringify(bundle({}, 10_001))],
-    ["summary missing", JSON.stringify(bundle({ summary: undefined }))],
-    ["summary is an array", JSON.stringify(bundle({ summary: [] }))],
-    ["truncated flag absent", JSON.stringify(bundle({ summary: {} }))],
-    ["truncated flag not boolean", JSON.stringify(bundle({ summary: { truncated: "no" } }))],
-  ])("rejects an invalid export: %s", async (_name, content) => {
-    renderApp("/sources");
-    await upload(exportFile(content));
-    expect(await screen.findByText(/Invalid local Outlook export\./)).toBeInTheDocument();
-    expect(imports()).toHaveLength(0);
-  });
-  it("rejects a file that is not JSON and one larger than 10 MB", async () => {
-    renderApp("/sources");
-    await upload(exportFile("not json"));
-    expect(await screen.findByText(/not valid JSON/i)).toBeInTheDocument();
-    const large = exportFile(bundle());
-    Object.defineProperty(large, "size", { value: 10_000_001 });
-    await upload(large);
-    expect(await screen.findByText(/Local Outlook export is larger than 10 MB\./)).toBeInTheDocument();
-    expect(imports()).toHaveLength(0);
-  });
-  it("reports how many batches were saved when a later batch fails", async () => {
-    let seen = 0;
-    renderApp("/sources", makeState(), (path) => { if (path === "/local-outlook/import" && seen++ === 1) throw new Error("import failed"); });
-    await upload(exportFile(bundle()));
-    expect(await screen.findByText(/import failed 1 of 2 batches were saved before this failure\./)).toBeInTheDocument();
-    expect(calls("/sync/run")).toHaveLength(0);
-    expect(screen.queryByText(/Uploading batch/)).not.toBeInTheDocument();
-  });
-  it("ignores an empty file choice", async () => {
-    renderApp("/sources");
-    await ready();
-    await userEvent.upload(screen.getByLabelText("Import local Outlook JSON"), []);
-    expect(imports()).toHaveLength(0);
-  });
-});
+const gmailStatus = (overrides: Record<string, unknown> = {}) => ({ configured: true, connected: true, accountEmail: "branden.farmer.dev@gmail.com", labels: { ready: true, missing: [] }, status: "connected", lastRecentPollAt: null, lastSweepAt: null, pending: 0, review: 0, coverageWarning: null, ...overrides });
+const gmail = () => calls("/connections/gmail");
 
 describe("connections and sync", () => {
-  it("shows connection status and has no Microsoft Graph controls", async () => {
+  it("shows Gmail-only mailbox status, readonly boundary, label requirements and keeps tracker controls", async () => {
     renderApp("/sources");
     await ready();
-    expect(screen.getByText("Not imported")).toBeInTheDocument();
-    expect(screen.getByText("Connected")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Outlook API|Microsoft|Graph/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/Sync never sends email or changes your spreadsheet\./)).toBeInTheDocument();
+    expect(await screen.findByText("Connected account: branden.farmer.dev@gmail.com")).toBeInTheDocument();
+    expect(screen.getAllByText("Connected")).toHaveLength(2);
+    expect(screen.queryByLabelText(/Import local Outlook/)).not.toBeInTheDocument();
+    expect(screen.getByText(/read-only permission covers the mailbox/i)).toBeInTheDocument();
+    expect(screen.getByText(/Job search, Application receipts, Recruiter follow ups/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pause tracker" })).toBeInTheDocument();
+  });
+  it("offers connect and reconnect with safe setup state and missing labels", async () => {
+    const disconnected = gmailStatus({ connected: false, accountEmail: null, status: "disconnected", labels: { ready: false, missing: ["Job search", "Review"] } });
+    renderApp("/sources", makeState(), (path) => path === "/connections/gmail" ? disconnected : undefined);
+    expect(await screen.findByRole("button", { name: "Connect Gmail" })).toBeInTheDocument();
+    expect(screen.getByText(/Create the parent label/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run Gmail sync" })).toBeDisabled();
+    expect(gmail()).toHaveLength(1);
+  });
+  it("reconnects when provider authorization needs renewal", async () => {
+    renderApp("/sources", makeState(), (path) => path === "/connections/gmail" ? gmailStatus({ connected: false, accountEmail: null, status: "reconnect_required" }) : undefined);
+    expect(await screen.findByRole("button", { name: "Reconnect Gmail" })).toBeInTheDocument();
+    expect(screen.getByText(/saved authorization needs owner action/)).toBeInTheDocument();
+  });
+  it("queues sync and explicit resume as separate actions", async () => {
+    renderApp("/sources");
+    await userEvent.click(await screen.findByRole("button", { name: "Run Gmail sync" }));
+    await waitFor(() => expect(intelligenceApi).toHaveBeenCalledWith("/gmail/sync/run", "POST", { action: "sync" }));
+    await userEvent.click(screen.getByRole("button", { name: "Resume Gmail imports" }));
+    await waitFor(() => expect(intelligenceApi).toHaveBeenCalledWith("/gmail/sync/run", "POST", { action: "resume" }));
   });
   it("pauses a connected tracker and connects a paused one", async () => {
     const paused = renderApp("/sources");
@@ -101,9 +56,9 @@ describe("connections and sync", () => {
   });
   it("runs a sync, reprocesses evidence and refreshes the dashboard", async () => {
     renderApp("/sources");
-    await userEvent.click(await screen.findByRole("button", { name: "Run sync" }));
-    expect(await screen.findByText("Sync queued. Refresh to see results.")).toBeInTheDocument();
-    expect(intelligenceApi).toHaveBeenCalledWith("/sync/run", "POST", undefined);
+    await userEvent.click(await screen.findByRole("button", { name: "Run Gmail sync" }));
+    expect(await screen.findByText("Gmail sync queued.")).toBeInTheDocument();
+    expect(intelligenceApi).toHaveBeenCalledWith("/gmail/sync/run", "POST", { action: "sync" });
     await userEvent.click(screen.getByRole("button", { name: "Reprocess retained evidence" }));
     await waitFor(() => expect(intelligenceApi).toHaveBeenCalledWith("/reprocess", "POST", undefined));
     const before = calls("/dashboard").length;
@@ -111,9 +66,9 @@ describe("connections and sync", () => {
     await waitFor(() => expect(calls("/dashboard").length).toBeGreaterThan(before));
   });
   it("shows a failed action's message in the shell", async () => {
-    renderApp("/sources", makeState(), (path, method) => { if (path === "/sync/run" && method === "POST") throw new Error("sheets setup required"); });
-    await userEvent.click(await screen.findByRole("button", { name: "Run sync" }));
-    expect(await screen.findByText(/sheets setup required/)).toBeInTheDocument();
+    renderApp("/sources", makeState(), (path, method) => { if (path === "/gmail/sync/run" && method === "POST") throw new Error("provider unavailable"); });
+    await userEvent.click(await screen.findByRole("button", { name: "Run Gmail sync" }));
+    expect(await screen.findByText(/provider unavailable/)).toBeInTheDocument();
   });
 });
 
@@ -128,19 +83,13 @@ describe("sync history", () => {
     expect(within(table).getAllByText("Provider request failed")).toHaveLength(3);
     expect(within(table).getAllByText("Manual")).toHaveLength(3);
   });
-  it("labels the trigger of automatic runs and shows the last automatic upload only when there is one", async () => {
-    const without = renderApp("/sources");
-    await ready();
-    expect(screen.queryByText(/Last automatic upload/)).not.toBeInTheDocument();
-    without.unmount();
+  it("labels the trigger of automatic runs", async () => {
     renderApp("/sources", dashboardWith((state) => {
-      state.dashboard.localOutlookLastAutomatedAt = "2026-10-02T08:00:00Z";
       state.dashboard.runs = [{ ...state.dashboard.runs[0], id: "9", trigger: "automation" }, { ...state.dashboard.runs[1], trigger: undefined }];
     }));
     const table = await screen.findByRole("table", { name: "Sync history" });
     expect(within(table).getByText("Automation")).toBeInTheDocument();
     expect(within(table).getAllByText("—")).toHaveLength(1);
-    expect(screen.getByText(/Last automatic upload: /)).toBeInTheDocument();
   });
   it("does not warn when a recent run succeeded, and handles runs that have not finished", async () => {
     renderApp("/sources", dashboardWith((state) => {
