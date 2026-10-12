@@ -220,6 +220,10 @@ try {
   Assert-Registration ([bool]$freshResult.Imported) 'fresh unregister imports runtime before mutex use'
   Assert-Registration ([bool]$freshResult.Unregistered -and [bool]$freshResult.TaskAbsent) 'fresh process unregisters only the disabled mock task'
   Write-Output 'Synthetic Outlook registration behavior tests passed.'
+} catch {
+  [Console]::Error.WriteLine(('Registration harness runtime: PowerShell '+$PSVersionTable.PSVersion+'; '+[Environment]::OSVersion))
+  [Console]::Error.WriteLine(('Registration harness failure stack: '+$_.ScriptStackTrace))
+  throw
 } finally {
   Get-Job -ErrorAction SilentlyContinue|Stop-Job -ErrorAction SilentlyContinue;Get-Job -ErrorAction SilentlyContinue|Remove-Job -Force -ErrorAction SilentlyContinue
   if(Test-Path -LiteralPath $testRoot){Remove-Item -LiteralPath $testRoot -Recurse -Force}
