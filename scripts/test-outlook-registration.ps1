@@ -18,6 +18,7 @@ $script:CurrentGateContext=$null
 $script:GateObservedDuringCopy=$false
 $script:TestProtect={param([byte[]]$Bytes,[byte[]]$Entropy);return ,[Text.Encoding]::UTF8.GetBytes([Convert]::ToBase64String($Bytes))}
 $script:TestUnprotect={param([byte[]]$Bytes,[byte[]]$Entropy);return ,[Convert]::FromBase64String([Text.Encoding]::UTF8.GetString($Bytes))}
+Import-Module (Join-Path $PSScriptRoot 'outlook-private-runtime.psm1') -Force
 function New-PrivateRuntimeContext {
   param([string]$StateRoot,[string]$Environment,[string]$MailboxBinding,[string]$ConfigVersion,[scriptblock]$ProtectBytes,[scriptblock]$UnprotectBytes)
   $moduleArgs=@{StateRoot=$StateRoot;Environment=$Environment;MailboxBinding=$MailboxBinding;ConfigVersion=$ConfigVersion;ProtectBytes=$script:TestProtect;UnprotectBytes=$script:TestUnprotect}
@@ -59,7 +60,6 @@ function New-Fixture([string]$Root,[string]$PriorTaskState='Disabled'){
   return [pscustomobject]@{Root=$Root;Mailbox=$mailbox;Context=$context;Gate=$gate;Bin=$bin;Names=$names;Record=$record}
 }
 
-Import-Module (Join-Path $PSScriptRoot 'outlook-private-runtime.psm1') -Force
 Set-PrivateRuntimeMutexFactory ({param($Name)[Threading.Mutex]::new($false,$script:TestMutexName)}.GetNewClosure())
 $registration=Join-Path $PSScriptRoot 'register-outlook-automation-task.ps1'
 $testRoot=Join-Path ([IO.Path]::GetTempPath()) ('jsi-registration-test-'+[guid]::NewGuid().ToString('N'))
