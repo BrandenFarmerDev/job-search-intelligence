@@ -66,7 +66,12 @@ it("checkpoints bounded sheet slices, defers removals and replays without duplic
  expect(await syncSheets(env,"run",2)).toEqual({changed:1,unchanged:4,missing:1});
  expect((await db.prepare("SELECT COUNT(*) AS count FROM sheet_rows WHERE available=1").first())?.count).toBe(5);expect(await db.prepare("SELECT updated_at FROM sync_state WHERE provider='sheets'").first()).not.toBeNull();
  const before=(await db.prepare("SELECT id FROM application_events").all()).results.length;
- expect(await syncSheets(env,"run",2)).toEqual({changed:0,unchanged:5,missing:0});expect((await db.prepare("SELECT id FROM application_events").all()).results).toHaveLength(before);close();
+ expect(await syncSheets(env,"run",2)).toEqual({changed:0,unchanged:5,missing:0});expect((await db.prepare("SELECT id FROM application_events").all()).results).toHaveLength(before);
+ vi.mocked(fetchSheet).mockResolvedValue([]);const alreadyMissing=(await db.prepare("SELECT COUNT(*) AS count FROM sheet_rows WHERE available=0").first<{count:number}>())?.count||0;
+ expect(await syncSheets(env,"run",2)).toEqual({changed:0,unchanged:0,missing:2,more:true});
+ expect((await db.prepare("SELECT COUNT(*) AS count FROM sheet_rows WHERE available=0").first<{count:number}>())?.count).toBe(alreadyMissing+2);
+ expect(await syncSheets(env,"run",2)).toEqual({changed:0,unchanged:0,missing:2,more:true});expect(await syncSheets(env,"run",2)).toEqual({changed:0,unchanged:0,missing:1});
+ expect((await db.prepare("SELECT COUNT(*) AS count FROM sheet_rows WHERE available=0").first<{count:number}>())?.count).toBe(alreadyMissing+5);close();
 });
 it("expires excerpts and transient run/auth history without deleting durable evidence",async()=>{
  const {env,db,close}=fixture();provider();await acquireLease(db,"run");vi.mocked(graphPage).mockResolvedValue({value:[{...message,receivedDateTime:"2020-01-01"}],"@odata.deltaLink":cursor()});await ingestGraphPage(env,"inbox","run");
@@ -84,6 +89,20 @@ it("uses a body fallback only for relevant incomplete previews and skips unchang
 it("never requests a Graph token or body while the version-one feature gate is disabled",async()=>{
  const {env,close}=fixture();env.MICROSOFT_GRAPH_ENABLED="false";await ingestLocalOutlookBatch(env,{format:"job-search-intelligence.outlook-com.v1",accountId:"a".repeat(64),exportedAt:"2026-10-01T00:00:00Z",since:"2026-09-30T07:00:00Z",summary:{truncated:false},messages:[{immutableId:"b".repeat(64),folder:"inbox",subject:"Application received",sender:"jobs@example.com",excerpt:"Thank you for applying",occurredAt:"2026-09-30T15:00:00Z",conversationId:"conversation",internetMessageId:"<local@example.com>",revision:"2026-09-30T15:01:00Z"}]});
  await acquireLease(env.JOB_SEARCH_DB,"run");await processMessages(env,"run");expect(microsoftToken).not.toHaveBeenCalled();expect(graphBody).not.toHaveBeenCalled();close();
+});
+it("fences the classification-decision cache write against a stale Gmail generation",async()=>{
+ const {env,db,close}=fixture();const mailbox="synthetic-owner@gmail.com";env.GMAIL_MAILBOX=mailbox;await acquireLease(db,"gmail-run");
+ const epoch=(await db.prepare("SELECT value FROM app_metadata WHERE key='job_data_generation'").first<{value:string}>())!.value;const connectionGeneration=(await db.prepare("SELECT value FROM app_metadata WHERE key='gmail_connection_generation'").first<{value:string}>())!.value;
+ await db.batch([
+  db.prepare("INSERT INTO app_metadata(key,value) VALUES('mail_source','gmail') ON CONFLICT(key) DO UPDATE SET value='gmail'"),
+  db.prepare("INSERT INTO app_metadata(key,value) VALUES('gmail_sync_paused','false') ON CONFLICT(key) DO UPDATE SET value='false'"),
+  db.prepare("INSERT INTO gmail_connections VALUES('gmail-test',?, 'encrypted','now','now',?,'connected','https://www.googleapis.com/auth/gmail.readonly')").bind(mailbox,connectionGeneration),
+  db.prepare("INSERT INTO message_references(id,account_id,immutable_id,conversation_id,subject,sender,occurred_at,excerpt,content_hash,available,updated_at,processed_hash) VALUES('gmail-message',?, 'gmail-1','gmail-thread','Job offer','jobs@example.test','2026-10-01','Pleased to offer you a position','body-hash',1,'now',NULL)").bind(mailbox),
+  db.prepare("INSERT INTO gmail_message_instances(id,mailbox,gmail_id,thread_id,canonical_id,labels_json,internal_date,sender,subject,available,state,updated_at) VALUES('instance',?,'gmail-1','gmail-thread','gmail-message','[]','2026-10-01','jobs@example.test','Job offer',1,'pending','now')").bind(mailbox),
+ ]);
+ const staleDb=new Proxy(db,{get(target,property){if(property==="batch")return async(statements:D1PreparedStatement[])=>{await db.prepare("UPDATE app_metadata SET value=? WHERE key='job_data_generation'").bind("f".repeat(32)).run();return target.batch(statements);};const value=Reflect.get(target,property,target);return typeof value==="function"?value.bind(target):value;}});
+ await expect(processMessages({...env,JOB_SEARCH_DB:staleDb},"gmail-run",1,{epoch,connectionGeneration})).rejects.toThrow();
+ expect(await db.prepare("SELECT cache_key FROM classification_decisions").first()).toBeNull();expect(await db.prepare("SELECT processed_hash FROM message_references WHERE id='gmail-message'").first()).toMatchObject({processed_hash:null});close();
 });
 it("does not inherit an arbitrary application identity when one conversation has multiple applications",async()=>{
  const {env,db,close}=fixture();provider();await acquireLease(db,"run");vi.mocked(graphPage).mockResolvedValue({value:[message],"@odata.deltaLink":cursor()});await ingestGraphPage(env,"inbox","run");await processMessages(env,"run");

@@ -1,6 +1,7 @@
 import { importPKCS8, SignJWT } from "jose";
 import type { SourceRecord, EventType } from "@job-search/shared";
 import { digest, Problem, providerJson, safeLink, text } from "./security";
+import { reserveExternal } from "./execution-budget";
 
 export interface SheetRow { key: string; hash: string; snapshot: string; record: SourceRecord; ambiguous: boolean }
 export function normalize(value: string): string { return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
@@ -50,11 +51,11 @@ export async function fetchSheet(env: Env): Promise<SheetRow[]> {
   const assertion = await new SignJWT({ scope: "https://www.googleapis.com/auth/spreadsheets.readonly" })
     .setProtectedHeader({ alg: "RS256" }).setIssuer(account.client_email).setAudience("https://oauth2.googleapis.com/token")
     .setIssuedAt().setExpirationTime("1h").sign(await importPKCS8(account.private_key, "RS256"));
-  const token = await providerJson<{ access_token: string }>("https://oauth2.googleapis.com/token", { method: "POST", body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }) });
+  reserveExternal(env);const token = await providerJson<{ access_token: string }>("https://oauth2.googleapis.com/token", { method: "POST", body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }) });
   if (!token.access_token) throw new Problem(502, "invalid_google_token");
   const url = new URL(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(env.GOOGLE_SPREADSHEET_ID)}/values:batchGet`);
   url.search = new URLSearchParams({ ranges: env.GOOGLE_SHEET_RANGE, valueRenderOption: "FORMATTED_VALUE" }).toString();
-  const result = await providerJson<{ valueRanges?: { values?: unknown[][] }[] }>(url.href, { headers: { Authorization: `Bearer ${token.access_token}` } });
+  reserveExternal(env);const result = await providerJson<{ valueRanges?: { values?: unknown[][] }[] }>(url.href, { headers: { Authorization: `Bearer ${token.access_token}` } });
   const values = result.valueRanges?.[0]?.values;
   if (!values) throw new Problem(502, "empty_sheet_response");
   return parseRows(values);

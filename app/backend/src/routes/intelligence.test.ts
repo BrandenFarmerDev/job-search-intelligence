@@ -11,6 +11,18 @@ function caller(env:Env,principal:Principal={kind:"owner",id:"owner-sub"}) {
  return (path:string,method="GET",body?:object,extraHeaders:Record<string,string>={})=>intelligenceRoute(new Request(`https://api.example.com/api/job-intelligence${path}`,{method,headers:{...(body?{"Content-Type":"application/json"}:{}),...extraHeaders},body:body?JSON.stringify(body):undefined}),env,principal);
 }
 const manual={company:"ExampleCo",role:"Engineer",applied_at:"2026-09-01",status:"application_submitted"};
+it("keeps Gmail status safe and disconnects without deleting imported evidence",async()=>{
+ const {env,db,close}=fixture();const owner=caller(env);const status=await owner("/connections/gmail");expect(status.status).toBe(200);expect(await status.json()).toMatchObject({configured:false,connected:false,status:"setup_required",labels:{ready:false}});
+ await expect(owner("/gmail/sync/run","POST",{action:"resume"})).rejects.toMatchObject({code:"gmail_connection_required"});
+ const generation=(await db.prepare("SELECT value FROM app_metadata WHERE key='gmail_connection_generation'").first<{value:string}>())!.value;
+ await db.prepare("INSERT INTO gmail_connections VALUES('connection','synthetic-owner@gmail.com','encrypted','now','now',?,'connected','https://www.googleapis.com/auth/gmail.readonly')").bind(generation).run();
+ await expect(owner("/gmail/sync/run","POST",{action:"invalid"})).rejects.toMatchObject({code:"invalid_gmail_sync_action"});
+ await expect(owner("/gmail/sync/run","POST",{action:"resume"})).rejects.toMatchObject({code:"gmail_sync_not_accepted"});
+ const callback=await owner("/connections/gmail/callback?error=denied");expect(callback.status).toBe(303);expect(callback.headers.get("Location")).toBe(`${env.ALLOWED_ORIGIN}?gmail=error`);
+ await db.prepare("INSERT INTO message_references(id,account_id,immutable_id,conversation_id,subject,sender,occurred_at,content_hash,available,updated_at) VALUES('preserve','legacy','old','old','kept','sender','2026-10-01','hash',1,'now')").run();
+ expect(await (await owner("/connections/gmail","DELETE")).json()).toEqual({disconnected:true,retainedEvidence:true});expect(await db.prepare("SELECT id FROM message_references WHERE id='preserve'").first()).not.toBeNull();
+ expect((await db.prepare("SELECT value FROM app_metadata WHERE key='mail_source'").first<{value:string}>())?.value).toBe("none");close();
+});
 it("creates auditable owner records, searches/filters/pages safely, exports and exposes evidence",async()=>{
  const {env,close}=fixture();const call=caller(env);expect((await call("/session")).headers.get("Location")).toBe(env.ALLOWED_ORIGIN);
  const response=await call("/applications","POST",manual);expect(response.status).toBe(201);const {id}=await response.json() as {id:string};
@@ -67,7 +79,7 @@ it("lets automation import and queue syncs without ever resuming paused imports"
  const {env,db,close}=fixture();const owner=caller(env);const auto=caller(env,{kind:"automation",id:"automation"});const generation=(await owner("/sync-runs")).headers.get("X-Job-Data-Generation")!;const header={"X-Job-Data-Generation":generation};const body={format:"job-search-intelligence.outlook-com.v1",accountId:"a".repeat(64),exportedAt:"2026-10-02T00:00:00Z",since:"2026-09-30T07:00:00Z",summary:{truncated:false},messages:[]};
  const meta=async(key:string)=>(await db.prepare("SELECT value FROM app_metadata WHERE key=?").bind(key).first<{value:string}>())?.value;
  expect(await (await auto("/local-outlook/import","POST",body,header)).json()).toEqual({imported:0});expect(await meta("local_outlook_last_automated_import")).toBe("2026-10-02T00:00:00.000Z");expect((await (await auto("/dashboard")).json() as {localOutlookLastAutomatedAt:string}).localOutlookLastAutomatedAt).toBe("2026-10-02T00:00:00.000Z");
- expect((await auto("/sync/run","POST")).status).toBe(202);expect(env.JOB_SYNC.create).toHaveBeenLastCalledWith({params:{trigger:"automation",expectedGeneration:generation}});expect((await owner("/sync/run","POST")).status).toBe(202);expect(env.JOB_SYNC.create).toHaveBeenLastCalledWith({params:{trigger:"manual",expectedGeneration:generation}});
+ expect((await auto("/sync/run","POST")).status).toBe(202);expect(env.JOB_SYNC.create).toHaveBeenLastCalledWith({params:{trigger:"automation",expectedGeneration:generation,mailSource:"none",connectionGeneration:""}});expect((await owner("/sync/run","POST")).status).toBe(202);expect(env.JOB_SYNC.create).toHaveBeenLastCalledWith({params:{trigger:"manual",expectedGeneration:generation,mailSource:"none",connectionGeneration:""}});
  await owner("/applications","POST",manual);await owner("/data","DELETE",{confirmation:"DELETE ALL JOB DATA"});expect(await meta("local_outlook_last_automated_import")).toBeUndefined();
  await expect(auto("/local-outlook/import","POST",body,header)).rejects.toMatchObject({status:409,code:"stale_data_generation"});expect(await meta("sync_paused")).toBe("true");expect(await meta("local_outlook_last_automated_import")).toBeUndefined();
  await owner("/local-outlook/import","POST",body);expect(await meta("sync_paused")).toBe("false");expect(await meta("local_outlook_last_automated_import")).toBeUndefined();close();

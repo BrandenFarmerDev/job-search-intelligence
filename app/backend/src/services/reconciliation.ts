@@ -26,7 +26,7 @@ export function matchRecord(record: SourceRecord, applications: ApplicationRecor
   }
   return { application: null, state: record.company && record.role && record.appliedAt ? record.source === "email" ? "email_only" as const : "sheet_only" as const : "needs_review" as const, reason: "No reliable match" };
 }
-export async function reconcile(db: D1Database, record: SourceRecord, confidence: number, needsReview: boolean) {
+export async function reconcile(db: D1Database, record: SourceRecord, confidence: number, needsReview: boolean, guardedWrite?: (statements:D1PreparedStatement[])=>Promise<void>) {
   const previous = await db.prepare("SELECT application_id,state,manual FROM reconciliation_matches WHERE source=? AND source_id=?").bind(record.source, record.id).first<{ application_id: string | null; state: string; manual: number }>();
   // Manual association/exclusion is durable across every resync.
   if (previous?.state === "excluded") return;
@@ -58,7 +58,7 @@ export async function reconcile(db: D1Database, record: SourceRecord, confidence
   const now = new Date().toISOString();
   const statements: D1PreparedStatement[] = [];
   if (!applicationId && state !== "needs_review") {
-    applicationId = crypto.randomUUID(); const organizationId = await envlessOrganization(db, record.company);
+    applicationId = crypto.randomUUID(); const organizationId = await envlessOrganization(db, record.company, guardedWrite);
     statements.push(db.prepare("INSERT INTO applications VALUES(?,?,?,?,?,?,?,?,?,?,0,?)")
       .bind(applicationId, organizationId, record.company, record.role, record.requisitionId || null, record.url || null, record.appliedAt, record.status === "application_confirmation" ? "application_submitted" : record.status, record.source, state, now));
   }
@@ -73,10 +73,11 @@ export async function reconcile(db: D1Database, record: SourceRecord, confidence
       .bind(record.status, state, now, applicationId, applicationId, record.source, applicationId, applicationId, record.eventAt || record.appliedAt));
     if (["matched","conflict","needs_review","email_only","sheet_only"].includes(state)) statements.push(db.prepare("UPDATE applications SET reconciliation=?,updated_at=? WHERE id=? AND excluded=0").bind(state,now,applicationId));
   }
-  await db.batch(statements);
+  if(guardedWrite)await guardedWrite(statements);else await db.batch(statements);
 }
-async function envlessOrganization(db: D1Database, company: string): Promise<string> {
+async function envlessOrganization(db: D1Database, company: string, guardedWrite?: (statements:D1PreparedStatement[])=>Promise<void>): Promise<string> {
   const name = normalize(company); const id = crypto.randomUUID();
-  await db.prepare("INSERT OR IGNORE INTO organizations VALUES(?,?,?)").bind(id, company, name).run();
+  const insert=db.prepare("INSERT OR IGNORE INTO organizations VALUES(?,?,?)").bind(id, company, name);
+  if(guardedWrite)await guardedWrite([insert]);else await insert.run();
   return (await db.prepare("SELECT id FROM organizations WHERE normalized_name=?").bind(name).first<{ id: string }>())!.id;
 }

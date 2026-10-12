@@ -1,18 +1,48 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { JobSyncWorkflow, retryDelay, type SyncParameters } from "./workflow";
 import * as sync from "./services/sync";
+import * as gmail from "./services/gmail";
 import { fixture } from "./test/fixtures";
 import { Problem } from "./services/security";
 import { intelligenceRoute } from "./routes/intelligence";
 import type { WorkflowEvent, WorkflowStep } from "cloudflare:workers";
 vi.mock("./services/sync",async(importOriginal)=>({...await importOriginal<typeof import("./services/sync")>(),ingestGraphPage:vi.fn(),processMessages:vi.fn(),syncSheets:vi.fn(),retain:vi.fn()}));
+vi.mock("./services/gmail",async(importOriginal)=>({...await importOriginal<typeof import("./services/gmail")>(),gmailRefreshLabels:vi.fn(),gmailDiscoverPage:vi.fn(),gmailMetadataCandidate:vi.fn(),gmailBodyCandidate:vi.fn()}));
 afterEach(()=>vi.resetAllMocks());
 function workflow(env:Env,id="run",continuation?:number) {
  const instance=new JobSyncWorkflow({} as ExecutionContext,env);
- const event={instanceId:id,payload:{trigger:"manual" as const,expectedGeneration:"0".repeat(32),continuation},timestamp:new Date()} as WorkflowEvent<SyncParameters>;
+ const event={instanceId:id,payload:{trigger:"manual" as const,expectedGeneration:"0".repeat(32),continuation,mailSource:"microsoft" as const},timestamp:new Date()} as WorkflowEvent<SyncParameters>;
  const step={do:vi.fn(async(_name:string,_options:unknown,callback:()=>Promise<unknown>)=>callback())} as unknown as WorkflowStep;
  return {instance,event,step};
 }
+it("continues Gmail through isolated provider and processing phases without falling back to Outlook",async()=>{
+ const {env,db,close}=fixture();Object.assign(env,{GMAIL_ENABLED:"true",GMAIL_SYNC_ENABLED:"true",MAIL_SOURCE:"gmail"});
+ await db.prepare("UPDATE app_metadata SET value='gmail' WHERE key='mail_source'").run();await db.prepare("UPDATE app_metadata SET value='false' WHERE key='gmail_sync_paused'").run();
+ const generation=(await db.prepare("SELECT value FROM app_metadata WHERE key='gmail_connection_generation'").first<{value:string}>())!.value;
+ const phases=["labels","discovery","metadata","body","classification","sheets"] as const;
+ vi.mocked(gmail.gmailRefreshLabels).mockResolvedValue();
+ vi.mocked(gmail.gmailDiscoverPage).mockResolvedValue({done:false,discovered:3});vi.mocked(gmail.gmailMetadataCandidate).mockResolvedValue(true);vi.mocked(gmail.gmailBodyCandidate).mockResolvedValue(true);
+ vi.mocked(sync.processMessages).mockResolvedValue(1);vi.mocked(sync.syncSheets).mockResolvedValue({changed:1,unchanged:0,missing:0,more:true});
+ for(let i=0;i<phases.length;i++){
+  const {instance,event,step}=workflow(env,`gmail-${i}`);event.payload={...event.payload,mailSource:"gmail",connectionGeneration:generation,gmailPhase:phases[i]};
+  await instance.run(event,step);expect(env.JOB_SYNC.create).toHaveBeenLastCalledWith({params:expect.objectContaining({mailSource:"gmail",gmailPhase:phases[i]==="labels"?"discovery":phases[i]})});
+ }
+ expect(gmail.gmailRefreshLabels).toHaveBeenCalledTimes(1);expect(gmail.gmailDiscoverPage).toHaveBeenCalledTimes(1);expect(gmail.gmailMetadataCandidate).toHaveBeenCalledTimes(1);expect(gmail.gmailBodyCandidate).toHaveBeenCalledTimes(1);expect(sync.ingestGraphPage).not.toHaveBeenCalled();
+ const {instance,event,step}=workflow(env,"gmail-finish");event.payload={...event.payload,mailSource:"gmail",connectionGeneration:generation,gmailPhase:"finish"};await instance.run(event,step);expect(sync.retain).toHaveBeenCalled();close();
+});
+it("hands a drained Gmail Sheets slice to the explicit finish phase before reporting success",async()=>{
+ const {env,db,close}=fixture();Object.assign(env,{GMAIL_ENABLED:"true",GMAIL_SYNC_ENABLED:"true",MAIL_SOURCE:"gmail"});
+ await db.prepare("UPDATE app_metadata SET value='gmail' WHERE key='mail_source'").run();await db.prepare("UPDATE app_metadata SET value='false' WHERE key='gmail_sync_paused'").run();
+ const connection=(await db.prepare("SELECT value FROM app_metadata WHERE key='gmail_connection_generation'").first<{value:string}>())!.value;
+ vi.mocked(sync.syncSheets).mockResolvedValue({changed:1,unchanged:0,missing:0,more:false});
+ const first=workflow(env,"sheets-drained");first.event.payload={...first.event.payload,mailSource:"gmail",connectionGeneration:connection,gmailPhase:"sheets"};
+ await first.instance.run(first.event,first.step);
+ expect(await db.prepare("SELECT status FROM sync_runs WHERE id='sheets-drained'").first()).toMatchObject({status:"continued"});
+ expect(env.JOB_SYNC.create).toHaveBeenLastCalledWith({params:expect.objectContaining({gmailPhase:"finish"})});
+ const finish=workflow(env,"finish-after-sheets",1);finish.event.payload={...finish.event.payload,mailSource:"gmail",connectionGeneration:connection,gmailPhase:"finish"};
+ await finish.instance.run(finish.event,finish.step);
+ expect(sync.retain).toHaveBeenCalled();expect(await db.prepare("SELECT status FROM sync_runs WHERE id='finish-after-sheets'").first()).toMatchObject({status:"completed"});close();
+});
 it("runs durable bounded stages and records counters without storing private outputs",async()=>{
  const {env,db,close}=fixture();vi.mocked(sync.ingestGraphPage).mockResolvedValueOnce({done:false,count:2}).mockResolvedValue({done:true,count:1});vi.mocked(sync.processMessages).mockResolvedValueOnce(20).mockResolvedValue(1);vi.mocked(sync.syncSheets).mockResolvedValue({changed:3,unchanged:4,missing:1});
  await db.prepare("INSERT INTO sync_runs(id,trigger,status,started_at,finished_at) VALUES('dead','automation','running','2026-10-01',NULL)").run();
@@ -42,7 +72,7 @@ it("hands a large backlog to a continuation only after recording the slice and r
  vi.mocked(env.JOB_SYNC.create).mockImplementation(async()=>{leaseAtHandOff=await db.prepare("SELECT owner FROM sync_locks").first();statusAtHandOff=(await db.prepare("SELECT status FROM sync_runs WHERE id='batches'").first())?.status;return {id:"next"} as WorkflowInstance;});
  const batches=workflow(env,"batches");expect(await batches.instance.run(batches.event,batches.step)).toMatchObject({processed:40});
  expect(sync.processMessages).toHaveBeenCalledTimes(2);expect(sync.processMessages).toHaveBeenCalledWith(env,"batches",20);expect(sync.syncSheets).not.toHaveBeenCalled();
- expect(env.JOB_SYNC.create).toHaveBeenCalledWith({params:{trigger:"manual",expectedGeneration:"0".repeat(32),continuation:1}});expect(leaseAtHandOff).toBeNull();expect(statusAtHandOff).toBe("continued");
+ expect(env.JOB_SYNC.create).toHaveBeenCalledWith({params:{trigger:"manual",expectedGeneration:"0".repeat(32),continuation:1,mailSource:"microsoft"}});expect(leaseAtHandOff).toBeNull();expect(statusAtHandOff).toBe("continued");
  // An unfinished slice never counts as the last successful sync.
  expect((await db.prepare("SELECT error_code FROM sync_runs WHERE id='batches'").first())?.error_code).toBeNull();
  // A failed hand-off keeps the recorded slice and flags it; the backlog stays in D1 for the next trigger.
@@ -63,7 +93,7 @@ it("continues changed sheet rows with the lease released and retains only after 
  vi.mocked(sync.syncSheets).mockResolvedValueOnce({changed:15,unchanged:27,missing:0,more:true}).mockResolvedValue({changed:1,unchanged:42,missing:2});
  const first=workflow(env,"sheet-first");await first.instance.run(first.event,first.step);
  expect(sync.syncSheets).toHaveBeenCalledWith(env,"sheet-first",15);expect(sync.retain).not.toHaveBeenCalled();
- expect((await db.prepare("SELECT status FROM sync_runs WHERE id='sheet-first'").first())?.status).toBe("continued");expect(await db.prepare("SELECT owner FROM sync_locks").first()).toBeNull();expect(env.JOB_SYNC.create).toHaveBeenCalledWith({params:{trigger:"manual",expectedGeneration:"0".repeat(32),continuation:1}});
+ expect((await db.prepare("SELECT status FROM sync_runs WHERE id='sheet-first'").first())?.status).toBe("continued");expect(await db.prepare("SELECT owner FROM sync_locks").first()).toBeNull();expect(env.JOB_SYNC.create).toHaveBeenCalledWith({params:{trigger:"manual",expectedGeneration:"0".repeat(32),continuation:1,mailSource:"microsoft"}});
  const last=workflow(env,"sheet-last",1);await last.instance.run(last.event,last.step);expect(sync.retain).toHaveBeenCalledTimes(1);expect((await db.prepare("SELECT status FROM sync_runs WHERE id='sheet-last'").first())?.status).toBe("completed");
  vi.mocked(sync.syncSheets).mockResolvedValue({changed:15,unchanged:0,missing:0,more:true});const capped=workflow(env,"sheet-capped",50);await expect(capped.instance.run(capped.event,capped.step)).rejects.toThrow();expect((await db.prepare("SELECT error_code FROM sync_runs WHERE id='sheet-capped'").first())?.error_code).toBe("processing_limit_resume_required");close();
 });

@@ -42,6 +42,9 @@ export function apiImplementation(state: ApiState) {
     }
     if (path === "/applications/app1") return state.detail;
     if (path === "/local-outlook/import") return { imported: 1 };
+    if (path === "/connections/gmail") return { configured: true, connected: true, accountEmail: "branden.farmer.dev@gmail.com", labels: { ready: true, missing: [] }, status: "connected", lastRecentPollAt: null, lastSweepAt: null, pending: 0, review: 0, coverageWarning: null };
+    if (path === "/connections/gmail/start") return { authorizationUrl: "https://accounts.google.com/o/oauth2/v2/auth" };
+    if (path === "/gmail/sync/run") return { queued: true, runId: "synthetic-run" };
     return { saved: true };
   };
 }

@@ -1,6 +1,8 @@
 # Build QA — October 3, 2026
 
-October 11 Gmail pivot supersedes the Outlook experiment and cleanup next steps below. No accepted restore proof exists and real cleanup never ran. Do not resume COM/PIM experiments. Gmail integration, labels and Live routing are unconfigured; all Gmail provider acceptance remains pending. The Windows uploader stays disabled with maintenance enabled, and the earlier Bitwarden save is unverified. See the [handoff](gmail-pivot-handoff.md), proposed [routing](gmail-routing-plan.md) and [ingestion](gmail-ingestion-plan.md) plans, and [independent planning review](gmail-plans-qa.md).
+October 11 Gmail pivot supersedes the Outlook experiment and cleanup next steps below. No accepted restore proof exists and real cleanup never ran. Do not resume COM/PIM experiments. Gmail labels/filters, OAuth application and `gmail.readonly` scope are configured; Live redirect, replacement credentials, owner consent and production provider acceptance remain pending. The Windows uploader stays disabled with maintenance enabled, and the earlier Bitwarden save is unverified. See the [cutover record](gmail-cutover.md), [routing](gmail-routing-plan.md), [ingestion](gmail-ingestion-plan.md), [planning review](gmail-plans-qa.md) and [implementation review](gmail-implementation-qa.md).
+
+The frozen Gmail implementation passed `npm run quality` on October 12: 188 backend, 222 frontend, 12 shared and 18 root tests; every suite passed all four 85% coverage floors. Lint had zero warnings, native PowerShell command coverage remained at least 85% for every supported runtime script, duplication was 0%, Worker types/builds and migration 0005 passed locally, and the dependency audit reported zero vulnerabilities. Hosted exact-commit checks and provider acceptance remain separate evidence.
 
 Branch `bfarmer/scaffold-foundation`; publication and a reviewed PR are authorized.
 

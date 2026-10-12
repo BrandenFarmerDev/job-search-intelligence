@@ -49,6 +49,14 @@ export default {
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
     if (env.SYNC_ENABLED !== "true") return;
     const generation = await dataGeneration(env.JOB_SEARCH_DB);
-    if ((await env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='sync_paused'").first<{value:string}>())?.value !== "true") await env.JOB_SYNC.create({ params: { trigger: "scheduled", expectedGeneration: generation } });
+    if ((await env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='sync_paused'").first<{value:string}>())?.value === "true") return;
+    const source=(await env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='mail_source'").first<{value:string}>())?.value;
+    if(source==="gmail"){
+      if(env.MAIL_SOURCE!=="gmail"||env.GMAIL_ENABLED!=="true"||env.GMAIL_SYNC_ENABLED!=="true"||(await env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='gmail_sync_paused'").first<{value:string}>())?.value!=="false")return;
+      const connectionGeneration=(await env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='gmail_connection_generation'").first<{value:string}>())?.value||"";
+      await env.JOB_SYNC.create({params:{trigger:"scheduled",expectedGeneration:generation,mailSource:"gmail",connectionGeneration}});return;
+    }
+    if(source!=="microsoft"||env.MICROSOFT_GRAPH_ENABLED!=="true")return;
+    await env.JOB_SYNC.create({ params: { trigger: "scheduled", expectedGeneration: generation,mailSource:"microsoft" } });
   },
 } satisfies ExportedHandler<Env>;

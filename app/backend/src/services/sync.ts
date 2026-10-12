@@ -5,6 +5,7 @@ import { reconcile } from "./reconciliation";
 import { fetchSheet } from "./sheets";
 import { digest, Problem } from "./security";
 import { emailReferenceId } from "./email-identity";
+import { fencedGmailBatch } from "./gmail";
 
 export async function acquireLease(db: D1Database, owner: string, maintenance = false): Promise<boolean> {
   const row = await db.prepare("INSERT INTO sync_locks SELECT 'daily',?,? WHERE ?=1 OR NOT EXISTS(SELECT 1 FROM app_metadata WHERE key='sync_paused' AND value='true') ON CONFLICT(name) DO UPDATE SET owner=excluded.owner,expires_at=excluded.expires_at WHERE expires_at<? OR owner=? RETURNING owner")
@@ -50,38 +51,60 @@ export async function ingestGraphPage(env: Env, folder: string, owner: string): 
   await env.JOB_SEARCH_DB.batch(statements); // Source writes and cursor advance commit together.
   return { done: !page["@odata.nextLink"], count: page.value.length };
 }
-interface PendingMessage { id: string; immutable_id:string; subject: string; excerpt: string; conversation_id: string; occurred_at: string; content_hash: string; sent: number }
-export async function processMessages(env: Env, owner: string, limit = 100): Promise<number> {
+interface PendingMessage { id: string; immutable_id:string; subject: string; excerpt: string; conversation_id: string; occurred_at: string; content_hash: string; sent: number; gmail_state:string|null; gmail_review_reason:string|null }
+export async function processMessages(env: Env, owner: string, limit = 100, gmailFence?:{epoch:string;connectionGeneration:string}): Promise<number> {
   await heartbeat(env.JOB_SEARCH_DB, owner);
-  const messages = (await env.JOB_SEARCH_DB.prepare("SELECT m.*,EXISTS(SELECT 1 FROM message_folders f WHERE f.message_id=m.id AND f.folder='sentitems') AS sent FROM message_references m WHERE available=1 AND (processed_hash IS NULL OR processed_hash<>content_hash) ORDER BY occurred_at LIMIT ?").bind(limit).all<PendingMessage>()).results;
+  const messages = (await env.JOB_SEARCH_DB.prepare("SELECT m.*,EXISTS(SELECT 1 FROM message_folders f WHERE f.message_id=m.id AND f.folder='sentitems') AS sent,(SELECT state FROM gmail_message_instances g WHERE g.canonical_id=m.id ORDER BY g.updated_at DESC LIMIT 1) AS gmail_state,(SELECT review_reason FROM gmail_message_instances g WHERE g.canonical_id=m.id ORDER BY g.updated_at DESC LIMIT 1) AS gmail_review_reason FROM message_references m WHERE available=1 AND (processed_hash IS NULL OR processed_hash<>content_hash) AND (?=0 OR EXISTS(SELECT 1 FROM gmail_message_instances g WHERE g.canonical_id=m.id)) ORDER BY occurred_at LIMIT ?").bind(gmailFence?1:0,limit).all<PendingMessage>()).results;
   let connection:Awaited<ReturnType<typeof microsoftToken>>|undefined;
+  const writeBatch=async(statements:D1PreparedStatement[])=>{if(gmailFence)await fencedGmailBatch(env,owner,gmailFence.epoch,gmailFence.connectionGeneration,statements);else await env.JOB_SEARCH_DB.batch(statements);};
   for (const message of messages) {
     const candidates = message.conversation_id ? (await env.JOB_SEARCH_DB.prepare("SELECT DISTINCT a.id,a.company,a.role,a.requisition_id FROM applications a JOIN application_events e ON e.application_id=a.id JOIN message_references m ON e.source_id=m.id AND e.source='email' WHERE m.conversation_id=? AND a.excluded=0 LIMIT 2")
       .bind(message.conversation_id).all<{id:string;company:string;role:string;requisition_id:string|null}>()).results : [];
     const context=candidates.length === 1 ? candidates[0] : null;
     let excerpt=message.excerpt || "";
     let extracted=extractFields(message.subject,excerpt);
-    if (env.MICROSOFT_GRAPH_ENABLED === "true" && !context && classify(message.subject,excerpt,Boolean(message.sent)).type && (!extracted.company || !extracted.role)) {
+    if (env.MICROSOFT_GRAPH_ENABLED === "true" && env.MAIL_SOURCE!=="gmail" && !context && classify(message.subject,excerpt,Boolean(message.sent)).type && (!extracted.company || !extracted.role)) {
       if(connection === undefined)connection=await microsoftToken(env);
       if(connection) { excerpt=await graphBody(message.immutable_id,connection.token);extracted=extractFields(message.subject,excerpt); }
     }
-    const decision = await decide(env, message.id, message.subject, context ? `Job application conversation. ${excerpt}` : excerpt, Boolean(message.sent));
+    const decision = await decide(env, message.id, message.subject, context ? `Job application conversation. ${excerpt}` : excerpt, Boolean(message.sent),gmailFence?async(statement)=>writeBatch([statement]):undefined);
+    if(message.gmail_state&&message.gmail_review_reason){
+      const stamp=new Date().toISOString();await writeBatch([
+        env.JOB_SEARCH_DB.prepare("INSERT INTO reconciliation_matches(id,source,source_id,application_id,state,reason) VALUES(?,'email',?,NULL,'needs_review',?) ON CONFLICT(source,source_id) DO UPDATE SET state='needs_review',reason=excluded.reason WHERE reconciliation_matches.manual=0").bind(crypto.randomUUID(),message.id,`Gmail review: ${message.gmail_review_reason}`),
+        env.JOB_SEARCH_DB.prepare("UPDATE message_references SET processed_hash=? WHERE id=? AND content_hash=?").bind(message.content_hash,message.id,message.content_hash),
+        env.JOB_SEARCH_DB.prepare("UPDATE gmail_candidates SET stage='done',reason=?,updated_at=? WHERE gmail_id IN (SELECT gmail_id FROM gmail_message_instances WHERE canonical_id=?)").bind(message.gmail_review_reason,stamp,message.id),
+      ]);continue;
+    }
+    if(message.gmail_state&&decision.type===null){
+      const stamp=new Date().toISOString();await writeBatch([
+        env.JOB_SEARCH_DB.prepare("INSERT INTO reconciliation_matches(id,source,source_id,application_id,state,reason) VALUES(?,'email',?,NULL,'needs_review','Explicit Gmail candidate requires owner review') ON CONFLICT(source,source_id) DO UPDATE SET state='needs_review',reason=excluded.reason WHERE reconciliation_matches.manual=0").bind(crypto.randomUUID(),message.id),
+        env.JOB_SEARCH_DB.prepare("UPDATE message_references SET processed_hash=? WHERE id=? AND content_hash=?").bind(message.content_hash,message.id,message.content_hash),
+        env.JOB_SEARCH_DB.prepare("UPDATE gmail_message_instances SET state='review',review_reason='no_job_event_signal',updated_at=? WHERE canonical_id=? AND state='pending'").bind(stamp,message.id),
+        env.JOB_SEARCH_DB.prepare("UPDATE gmail_candidates SET stage='done',reason='no_job_event_signal',updated_at=? WHERE gmail_id IN (SELECT gmail_id FROM gmail_message_instances WHERE canonical_id=?)").bind(stamp,message.id),
+      ]);continue;
+    }
     if (decision.type) {
       const submission = ["application_submitted","application_confirmation"].includes(decision.type);
       const record: SourceRecord = { id: message.id, company:extracted.company || context?.company || "",role:extracted.role || context?.role || "",requisitionId:extracted.requisitionId || context?.requisition_id || "", url: "", appliedAt: submission ? message.occurred_at : "", eventAt:message.occurred_at, conversationId: message.conversation_id, applicationId: "", source: "email", status: decision.type };
-      await reconcile(env.JOB_SEARCH_DB, record, decision.confidence, decision.needsReview);
+      await reconcile(env.JOB_SEARCH_DB, record, decision.confidence, decision.needsReview,gmailFence?(statements)=>writeBatch(statements):undefined);
+      if(message.gmail_state){const nextState=decision.needsReview?"review":"imported";const stamp=new Date().toISOString();await writeBatch([
+        env.JOB_SEARCH_DB.prepare("UPDATE gmail_message_instances SET state=?,review_reason=?,updated_at=? WHERE canonical_id=?").bind(nextState,decision.needsReview?decision.reason:null,stamp,message.id),
+        env.JOB_SEARCH_DB.prepare("UPDATE gmail_candidates SET stage='done',reason=?,updated_at=? WHERE gmail_id IN (SELECT gmail_id FROM gmail_message_instances WHERE canonical_id=?)").bind(decision.needsReview?decision.reason:null,stamp,message.id),
+      ]);}
     }
-    await env.JOB_SEARCH_DB.prepare("UPDATE message_references SET processed_hash=? WHERE id=? AND content_hash=?").bind(message.content_hash, message.id, message.content_hash).run();
+    const processed=env.JOB_SEARCH_DB.prepare("UPDATE message_references SET processed_hash=? WHERE id=? AND content_hash=?").bind(message.content_hash, message.id, message.content_hash);
+    if(message.gmail_state)await writeBatch([processed]);else await processed.run();
   }
   return messages.length;
 }
-export async function syncSheets(env: Env, owner: string, limit = 15): Promise<{ changed: number; unchanged: number; missing: number; more?: boolean }> {
+export async function syncSheets(env: Env, owner: string, limit = 15,gmailFence?:{epoch:string;connectionGeneration:string}): Promise<{ changed: number; unchanged: number; missing: number; more?: boolean }> {
   await heartbeat(env.JOB_SEARCH_DB, owner);
   if (!env.GOOGLE_SERVICE_ACCOUNT_JSON) return { changed: 0, unchanged: 0, missing: 0 };
   const maintenance = await env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='sync_paused'").first<{value:string}>();
   if (maintenance?.value === "true") return {changed:0,unchanged:0,missing:0};
   const paused = await env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='sheets_paused'").first<{value: string}>();
   if (paused?.value === "true") return { changed: 0, unchanged: 0, missing: 0 };
+  const writeBatch=async(statements:D1PreparedStatement[])=>{if(gmailFence)await fencedGmailBatch(env,owner,gmailFence.epoch,gmailFence.connectionGeneration,statements);else await env.JOB_SEARCH_DB.batch(statements);};
   const rows = await fetchSheet(env); const now = new Date().toISOString();
   const existing = (await env.JOB_SEARCH_DB.prepare("SELECT id,row_key,row_hash,processed_hash FROM sheet_rows WHERE spreadsheet_id=? AND available=1").bind(env.GOOGLE_SPREADSHEET_ID).all<{ id: string; row_key: string; row_hash: string; processed_hash: string | null }>()).results;
   let changed = 0; let unchanged = 0; let more = false;
@@ -96,27 +119,29 @@ export async function syncSheets(env: Env, owner: string, limit = 15): Promise<{
     const id = await digest(`${env.GOOGLE_SPREADSHEET_ID}:${key}`);
     // Unchanged rows cost no D1 calls; the lease is confirmed only before a write, keeping the step within its subrequest budget.
     await heartbeat(env.JOB_SEARCH_DB, owner);
-    await env.JOB_SEARCH_DB.batch([
+    await writeBatch([
       env.JOB_SEARCH_DB.prepare("INSERT INTO sheet_rows VALUES(?,?,?,?,?,1,?,NULL) ON CONFLICT(spreadsheet_id,row_key) DO UPDATE SET row_hash=excluded.row_hash,snapshot=excluded.snapshot,available=1,updated_at=excluded.updated_at").bind(id, env.GOOGLE_SPREADSHEET_ID, key, row.hash, row.snapshot, now),
       env.JOB_SEARCH_DB.prepare("INSERT OR IGNORE INTO sheet_versions VALUES(?,?,?,?,?)").bind(crypto.randomUUID(), id, row.hash, row.snapshot, now),
     ]);
-    await reconcile(env.JOB_SEARCH_DB, { ...row.record, id }, 1, row.ambiguous);
-    await env.JOB_SEARCH_DB.prepare("UPDATE sheet_rows SET processed_hash=? WHERE id=? AND row_hash=?").bind(row.hash, id, row.hash).run();
+    await reconcile(env.JOB_SEARCH_DB, { ...row.record, id }, 1, row.ambiguous,gmailFence?(statements)=>writeBatch(statements):undefined);
+    const processed=env.JOB_SEARCH_DB.prepare("UPDATE sheet_rows SET processed_hash=? WHERE id=? AND row_hash=?").bind(row.hash, id, row.hash);if(gmailFence)await writeBatch([processed]);else await processed.run();
     changed++;
   }
   // Missing rows and the successful provider checkpoint are finalized only after all changed rows are reconciled.
   if (more) return { changed, unchanged, missing: 0, more: true };
   const missing = existing.filter((item) => !seen.has(item.row_key));
-  if (missing.length) await env.JOB_SEARCH_DB.batch(missing.map((item) => env.JOB_SEARCH_DB.prepare("UPDATE sheet_rows SET available=0,updated_at=? WHERE id=?").bind(now, item.id)));
-  await env.JOB_SEARCH_DB.prepare("INSERT INTO sync_state VALUES('sheets','tracker',NULL,?) ON CONFLICT(provider,scope) DO UPDATE SET updated_at=excluded.updated_at").bind(now).run();
+  const missingSlice=missing.slice(0,limit);
+  if (missingSlice.length) await writeBatch(missingSlice.map((item) => env.JOB_SEARCH_DB.prepare("UPDATE sheet_rows SET available=0,updated_at=? WHERE id=?").bind(now, item.id)));
+  if(missing.length>missingSlice.length)return {changed,unchanged,missing:missingSlice.length,more:true};
+  const checkpoint=env.JOB_SEARCH_DB.prepare("INSERT INTO sync_state VALUES('sheets','tracker',NULL,?) ON CONFLICT(provider,scope) DO UPDATE SET updated_at=excluded.updated_at").bind(now);if(gmailFence)await writeBatch([checkpoint]);else await checkpoint.run();
   return { changed, unchanged, missing: missing.length };
 }
-export async function retain(db: D1Database) {
+export async function retain(db: D1Database, guardedWrite?:(statements:D1PreparedStatement[])=>Promise<void>) {
   const excerptCutoff = new Date(Date.now() - 30 * 86400000).toISOString();
   const runCutoff = new Date(Date.now() - 90 * 86400000).toISOString();
-  await db.batch([
+  const writes=[
     db.prepare("UPDATE message_references SET excerpt=NULL WHERE occurred_at<?").bind(excerptCutoff),
     db.prepare("DELETE FROM sync_runs WHERE finished_at<?").bind(runCutoff),
     db.prepare("DELETE FROM oauth_states WHERE expires_at<?").bind(Date.now()),
-  ]);
+  ];if(guardedWrite)await guardedWrite(writes);else await db.batch(writes);
 }

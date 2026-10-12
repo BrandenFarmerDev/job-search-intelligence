@@ -1,6 +1,6 @@
 # Deployment and provider setup
 
-October 11 Gmail pivot supersedes the Outlook next steps and any historical statement below that the Windows uploader is enabled or its Bitwarden save is verified. The task is disabled, maintenance remains enabled, and the Bitwarden save is unverified. Gmail, labels and Live redirect are not configured. Do not resume COM experiments, enable ingestion schedules, merge or deploy the Gmail pivot under earlier Outlook authorization. See the [handoff](gmail-pivot-handoff.md) and proposed [ingestion/cutover plan](gmail-ingestion-plan.md); preserve the separate Sheets credentials and all recovery evidence.
+October 11 Gmail pivot supersedes the Outlook next steps and any historical statement below that the Windows uploader is enabled or its Bitwarden save is verified. The owner authorized this Gmail implementation, merge and deployment. Native Gmail labels/filters and the Google OAuth application are configured; the Live redirect, replacement OAuth credential, owner consent and production provider acceptance remain pending. The Windows task stays disabled with maintenance enabled until that acceptance. Do not resume COM experiments. Preserve the separate Sheets credentials and all recovery evidence. See the [cutover record](gmail-cutover.md) and [ingestion/cutover plan](gmail-ingestion-plan.md).
 
 PR #1 and deployment fix PR #3 are merged into main. The owner authorized merge and production deployment on October 3; GitHub verification succeeded and `ENABLE_DEPLOYMENTS=true` is saved. Scheduled sync, AI and Graph remain disabled. Preview and production now run final reviewed code; both GitHub deployments and authenticated production health passed.
 
@@ -13,7 +13,7 @@ Cloudflare account: `712adbcc6c4efdf86433da200b135398`. All resources are dedica
 | Test | https://jobs-test.brandenfarmer.com | https://jobs-api-test.brandenfarmer.com | `98748289-ff68-43b3-8cbe-5bf30d0e04bf` | `job-intelligence-sync-preview` |
 | Production | https://jobs.brandenfarmer.com | https://jobs-api.brandenfarmer.com | `9edee823-6086-4f4c-b544-cbf35bb03f3d` | `job-intelligence-sync-production` |
 
-Worker names: `job-search-intelligence-api-preview` / `job-search-intelligence-api`. Migrations 0001–0003 are applied remotely to both isolated databases. On October 3, both reported schema version 3, the normalization trigger, and zero legacy `submitted` statuses; application counts were unchanged. Encryption keys are unique 256-bit Worker secrets. Scheduled imports remain disabled (`SYNC_ENABLED=false`) despite the configured 14:00 UTC cron.
+Worker names: `job-search-intelligence-api-preview` / `job-search-intelligence-api`. Migrations 0001–0004 are applied remotely; additive Gmail migration `0005_gmail_ingestion.sql` is pending this release. Encryption keys are unique 256-bit Worker secrets. Scheduled imports remain disabled (`SYNC_ENABLED=false`) despite the configured 14:00 UTC cron.
 
 Direct Upload Pages project: `job-search-intelligence`, production branch `main`; no Git integration. The test domain has a **proxied** CNAME to `preview.job-search-intelligence.pages.dev`, production to `job-search-intelligence.pages.dev`. Do not accidentally point test to production. [Cloudflare branch-domain instructions](https://developers.cloudflare.com/pages/how-to/custom-branch-aliases/).
 
@@ -30,6 +30,18 @@ It has no project IAM roles. Its JSON key was provisioned only as production Wor
 Production range is `'Branden Farmer Job Application Tracker'!A1:O1000`, mapping all 15 inspected headers. The first authenticated run changed 15 rows; immediate replay changed 0 and reported 15 unchanged. Test must never receive this production identity or tracker access. Use synthetic fixtures or a separate synthetic sheet and separate credentials. Pausing/deleting app records does not revoke the external key; rotate or revoke it in Google Cloud when retiring access.
 
 A chat connector grant cannot be used as unattended Worker credentials. Pausing/deleting app records does not revoke this external service-account key.
+
+## Gmail: sole mailbox reader cutover
+
+Project `job-search-gmail-prod-bfarmer` has Gmail API enabled, exact restricted scope `https://www.googleapis.com/auth/gmail.readonly`, no linked billing account, and observed limits of 1,200,000 units/minute/project and 6,000 units/minute/user. Do not activate the offered free trial or attach billing. The OAuth web client uses these callbacks:
+
+- `https://jobs-api.brandenfarmer.com/api/job-intelligence/connections/gmail/callback`
+- `https://jobs-api-test.brandenfarmer.com/api/job-intelligence/connections/gmail/callback`
+- `http://localhost:8787/api/job-intelligence/connections/gmail/callback`
+
+Store `GMAIL_CLIENT_ID` and `GMAIL_CLIENT_SECRET` only as Worker secrets. Production config fixes `GMAIL_REDIRECT_URI`, `GMAIL_MAILBOX=branden.farmer.dev@gmail.com` and the historical floor. Preview remains disabled unless `GMAIL_SYNTHETIC_MAILBOX` names a different controlled mailbox. Keep `MAIL_SOURCE=none`, `GMAIL_ENABLED=false`, `GMAIL_SYNC_ENABLED=false` and `SYNC_ENABLED=false` through migration/deployment. After the accepted OAuth callback and controlled manual run, change the three Gmail source flags together in a reviewed production release; enable the cron only after provider acceptance and the required beyond-seven-day refresh observation.
+
+The first generated web-client secret was exposed by browser accessibility output and is rejected. Replace that client before saving Worker secrets or requesting consent. Never copy the exposed value into Cloudflare, Git, logs or documentation.
 
 ## Microsoft Graph: deferred after version one
 

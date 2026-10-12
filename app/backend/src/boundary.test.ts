@@ -28,8 +28,9 @@ it("limits the automation principal to an exact route allowlist without an Origi
  expect((await call("/sync/run","POST")).status).toBe(403);expect((await call("/sync/run","POST",env.ALLOWED_ORIGIN)).status).toBe(200);expect(intelligenceRoute).toHaveBeenCalledTimes(1);
  vi.mocked(authorize).mockRejectedValue(new Problem(401,"authentication_required"));expect((await call("/sync/run")).status).toBe(403);expect((await call("/sync-runs","GET")).status).toBe(401);close();
 });
-it("schedules only explicitly enabled sync",async()=>{
- const {env,db,close}=fixture();await worker.scheduled({} as ScheduledController,env);expect(env.JOB_SYNC.create).not.toHaveBeenCalled();env.SYNC_ENABLED="true";await worker.scheduled({} as ScheduledController,env);expect(env.JOB_SYNC.create).toHaveBeenCalledWith({params:{trigger:"scheduled",expectedGeneration:"0".repeat(32)}});vi.mocked(env.JOB_SYNC.create).mockClear();await db.prepare("INSERT INTO app_metadata VALUES('sync_paused','true')").run();await worker.scheduled({} as ScheduledController,env);expect(env.JOB_SYNC.create).not.toHaveBeenCalled();close();
+it("schedules only an explicitly selected and enabled provider",async()=>{
+ const {env,db,close}=fixture();await worker.scheduled({} as ScheduledController,env);expect(env.JOB_SYNC.create).not.toHaveBeenCalled();env.SYNC_ENABLED="true";await worker.scheduled({} as ScheduledController,env);expect(env.JOB_SYNC.create).not.toHaveBeenCalled();
+ await db.prepare("UPDATE app_metadata SET value='microsoft' WHERE key='mail_source'").run();await worker.scheduled({} as ScheduledController,env);expect(env.JOB_SYNC.create).toHaveBeenCalledWith({params:{trigger:"scheduled",expectedGeneration:"0".repeat(32),mailSource:"microsoft"}});vi.mocked(env.JOB_SYNC.create).mockClear();await db.prepare("INSERT INTO app_metadata VALUES('sync_paused','true')").run();await worker.scheduled({} as ScheduledController,env);expect(env.JOB_SYNC.create).not.toHaveBeenCalled();close();
 });
 it("does not enqueue a scheduled sync if deletion pauses the source during the generation snapshot",async()=>{
  const {env,db,close}=fixture();env.SYNC_ENABLED="true";
