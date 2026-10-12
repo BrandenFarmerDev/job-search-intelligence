@@ -1,8 +1,9 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { acquireLease, heartbeat, ingestGraphPage, processMessages, retain, syncSheets } from "./services/sync";
 import { Problem } from "./services/security";
+import { dataGeneration } from "./services/data-generation";
 
-export interface SyncParameters { trigger: "manual" | "scheduled" | "automation"; continuation?: number }
+export interface SyncParameters { trigger: "manual" | "scheduled" | "automation"; expectedGeneration: string; continuation?: number }
 export function retryDelay({error}:{error:Error}): `${number} seconds` { return `${error instanceof Problem ? error.retryAfter : 30} seconds`; }
 const retry = { retries: { limit: 3, delay: retryDelay, backoff: "exponential" as const }, timeout: "2 minutes" as const, sensitive: "output" as const };
 // Every message costs roughly fifteen sequential D1 calls. A Worker invocation allows 1,000 calls to Cloudflare services
@@ -14,15 +15,32 @@ export const MAX_CONTINUATIONS = 50;
 export class JobSyncWorkflow extends WorkflowEntrypoint<Env, SyncParameters> {
   async run(event: WorkflowEvent<SyncParameters>, step: WorkflowStep) {
     const id = event.instanceId; const counters = { messages: 0, processed: 0, changedRows: 0, unchangedRows: 0, missingRows: 0 };
+    const expectedGeneration = event.payload.expectedGeneration;
+    // Old queued events and events bound to a deleted dataset never acquire a lease or write run records.
+    if (!expectedGeneration || (await dataGeneration(this.env.JOB_SEARCH_DB)) !== expectedGeneration) return { status:"skipped_stale_generation" };
     const acquired = await step.do("acquire lease", retry, async () => {
+      if ((await dataGeneration(this.env.JOB_SEARCH_DB)) !== expectedGeneration) return "stale";
       const lease = await acquireLease(this.env.JOB_SEARCH_DB, id);
+      // Deletion can finish between the precheck and lease acquisition. Validate while holding
+      // the lease before writing history or closing interrupted rows.
+      if (lease && (await this.env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='job_data_generation'").first<{value:string}>())?.value !== expectedGeneration) {
+        await this.env.JOB_SEARCH_DB.prepare("DELETE FROM sync_locks WHERE owner=?").bind(id).run();
+        return "stale";
+      }
       if (!lease && (await this.env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='sync_paused'").first<{value:string}>())?.value === "true") return "paused";
       const startedAt = new Date().toISOString();
-      await this.env.JOB_SEARCH_DB.prepare("INSERT OR IGNORE INTO sync_runs(id,trigger,status,started_at,finished_at) VALUES(?,?,?,?,?)").bind(id, event.payload.trigger, lease ? "running" : "skipped_overlap", startedAt, lease ? null : startedAt).run();
+      await this.env.JOB_SEARCH_DB.prepare("INSERT OR IGNORE INTO sync_runs(id,trigger,status,started_at,finished_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM app_metadata WHERE key='job_data_generation' AND value=?)").bind(id, event.payload.trigger, lease ? "running" : "skipped_overlap", startedAt, lease ? null : startedAt, expectedGeneration).run();
       // Holding the lease proves no other run is alive, so any other row still marked running died before it could finish.
       if (lease) await this.env.JOB_SEARCH_DB.prepare("UPDATE sync_runs SET status='failed',finished_at=?,error_code='sync_interrupted' WHERE status='running' AND id<>?").bind(startedAt, id).run();
       return lease;
     });
+    // Workflow step results are durable and can be replayed from cache. Revalidate the epoch outside
+    // the step before any provider or classification work, and release only this run's lease if stale.
+    if (acquired === true && (await dataGeneration(this.env.JOB_SEARCH_DB)) !== expectedGeneration) {
+      await this.env.JOB_SEARCH_DB.prepare("DELETE FROM sync_locks WHERE owner=?").bind(id).run();
+      return { status:"skipped_stale_generation" };
+    }
+    if (acquired === "stale") return { status:"skipped_stale_generation" };
     if (acquired === "paused") return {status:"skipped_paused"};
     if (!acquired) return { status: "skipped_overlap" };
     const continuation = (event.payload.continuation ?? 0) + 1;
@@ -67,7 +85,7 @@ export class JobSyncWorkflow extends WorkflowEntrypoint<Env, SyncParameters> {
     if (!more) return counters;
     // The run is already recorded and its lease released, so the continuation can take the lease. A failed hand-off leaves
     // the backlog durable in D1 for the next trigger rather than rewriting this recorded run as failed.
-    try { await step.do("continue", retry, async () => { await this.env.JOB_SYNC.create({ params: { trigger: event.payload.trigger, continuation } }); }); }
+    try { await step.do("continue", retry, async () => { await this.env.JOB_SYNC.create({ params: { trigger: event.payload.trigger, expectedGeneration, continuation } }); }); }
     catch { try { await this.env.JOB_SEARCH_DB.prepare("UPDATE sync_runs SET error_code='continuation_failed' WHERE id=?").bind(id).run(); } catch { /* backlog remains pending */ } }
     return counters;
   }

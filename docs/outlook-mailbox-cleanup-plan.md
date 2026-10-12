@@ -1,6 +1,6 @@
 # Plan 1: Outlook mailbox cleanup
 
-**Plan only — implementation and mailbox changes await approval.** Prepared October 11, 2026 on `bfarmer/outlook-mailbox-export-plan`. Review with [Plan 2: export process](outlook-export-process-plan.md) and the [independent QA critique](outlook-plans-qa.md). No mailbox/cloud access, task changes, code implementation or live verification is part of this planning phase.
+**Approved for implementation, read-only inventory and listed empty-folder setup on October 11, 2026.** Work is on `bfarmer/outlook-mailbox-export-plan`. Review with [Plan 2: export process](outlook-export-process-plan.md) and the [independent QA critique](outlook-plans-qa.md). Exact item moves/deletions, installed-client release, merge/deployment and production capture retain the concrete acceptance gates below.
 
 ## Scope and proposed result
 

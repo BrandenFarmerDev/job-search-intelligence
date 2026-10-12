@@ -2,6 +2,7 @@ import { healthRoute } from "./routes/health";
 import { apiError, hardenResponse } from "./services/http";
 import { authorize, Problem, type Principal } from "./services/security";
 import { intelligenceRoute } from "./routes/intelligence";
+import { dataGeneration } from "./services/data-generation";
 export { JobSyncWorkflow } from "./workflow";
 
 // The only calls the Access service-token principal may make: upload, queue a sync, read run metadata.
@@ -17,7 +18,7 @@ export default {
     }
     const path = new URL(request.url).pathname;
     if (path.startsWith("/api/job-intelligence")) {
-      if (request.method === "OPTIONS" && allowedOrigin) return finish(new Response(null, { status: 204, headers: { "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS", "Access-Control-Allow-Headers": "Content-Type" } }));
+      if (request.method === "OPTIONS" && allowedOrigin) return finish(new Response(null, { status: 204, headers: { "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS", "Access-Control-Allow-Headers": "Content-Type, X-Job-Data-Generation" } }));
       let principal: Principal | undefined;
       if (!["GET", "HEAD"].includes(request.method) && !allowedOrigin) {
         principal = await authorize(request, env).catch(() => undefined);
@@ -46,6 +47,8 @@ export default {
       ? new Response(null, { status: response.status, headers: response.headers }) : response);
   },
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
-    if (env.SYNC_ENABLED === "true" && (await env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='sync_paused'").first<{value:string}>())?.value !== "true") await env.JOB_SYNC.create({ params: { trigger: "scheduled" } });
+    if (env.SYNC_ENABLED !== "true") return;
+    const generation = await dataGeneration(env.JOB_SEARCH_DB);
+    if ((await env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='sync_paused'").first<{value:string}>())?.value !== "true") await env.JOB_SYNC.create({ params: { trigger: "scheduled", expectedGeneration: generation } });
   },
 } satisfies ExportedHandler<Env>;

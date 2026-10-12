@@ -1,6 +1,6 @@
 # Plan 2: Outlook collection and upload
 
-Proposed for owner review, October 11, 2026. No implementation, installed-script replacement, mailbox operation, activation, merge, or deployment is authorized by this document. Accept collector coverage **before** [Plan 1](outlook-mailbox-cleanup-plan.md) moves mail.
+Approved by the owner on October 11, 2026 for implementation, read-only inventory and the listed empty-folder setup. Installed-client release, merge/deployment, production capture and the exact mailbox action manifest remain separate acceptance gates. Accept collector coverage **before** [Plan 1](outlook-mailbox-cleanup-plan.md) moves mail.
 
 ## Outcome and baseline
 

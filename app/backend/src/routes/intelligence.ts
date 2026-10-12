@@ -6,6 +6,7 @@ import { Problem, readJson, safeLink, text, type Principal } from "../services/s
 import { acquireLease } from "../services/sync";
 import { dateValue } from "../services/sheets";
 import { ingestLocalOutlookBatch } from "../services/local-outlook";
+import { dataGeneration } from "../services/data-generation";
 
 // Request values only select a key here; the SQL fragments are fixed. The legacy `date` key maps to newest-applied.
 const applicationOrder = new Map([["applied_desc", "applied_at DESC"], ["date", "applied_at DESC"], ["applied_asc", "applied_at ASC"], ["company", "company COLLATE NOCASE ASC"], ["status", "status ASC"], ["updated", "updated_at DESC"]]);
@@ -65,7 +66,7 @@ async function route(request: Request, env: Env, principal: Principal): Promise<
   const graphEnabled = env.MICROSOFT_GRAPH_ENABLED === "true";
   if (path.startsWith("/connections/microsoft") && !graphEnabled) throw new Problem(404, "route_not_found");
   if (path === "/connections/microsoft/start" && request.method === "POST") return beginMicrosoft(env, owner);
-  if (path === "/local-outlook/import" && request.method === "POST") return Response.json(await ingestLocalOutlookBatch(env, await readJson(request, 262144), automated));
+  if (path === "/local-outlook/import" && request.method === "POST") return Response.json(await ingestLocalOutlookBatch(env, await readJson(request, 262144), automated, request.headers.get("X-Job-Data-Generation")));
   if (path === "/connections/microsoft/callback" && request.method === "GET") {
     return completeMicrosoft(request,env,owner);
   }
@@ -79,10 +80,15 @@ async function route(request: Request, env: Env, principal: Principal): Promise<
     if (request.method === "POST") await db.prepare("INSERT INTO app_metadata VALUES('sync_paused','false') ON CONFLICT(key) DO UPDATE SET value='false'").run();
     return Response.json({ connected: request.method === "POST" });
   }
-  if (path === "/sync-runs" && request.method === "GET") return Response.json((await dashboard(env)).runs);
+  if (path === "/sync-runs" && request.method === "GET") {
+    const response = Response.json((await dashboard(env)).runs);
+    response.headers.set("X-Job-Data-Generation", await dataGeneration(db));
+    return response;
+  }
   if (path === "/sync/run" && request.method === "POST") {
+    const generation = await dataGeneration(db);
     if ((await db.prepare("SELECT value FROM app_metadata WHERE key='sync_paused'").first<{value:string}>())?.value === "true") throw new Problem(409,"reconnect_sources_to_resume");
-    const instance = await env.JOB_SYNC.create({ params: { trigger: automated ? "automation" : "manual" } }); return Response.json({ id: instance.id }, { status: 202 });
+    const instance = await env.JOB_SYNC.create({ params: { trigger: automated ? "automation" : "manual", expectedGeneration: generation } }); return Response.json({ id: instance.id }, { status: 202 });
   }
   if (["/reconciliation", "/review"].includes(path) && request.method === "GET") {
     const rows = await db.prepare("SELECT r.*,m.subject,m.web_link,s.snapshot,COALESCE(m.available,s.available,0) AS available FROM reconciliation_matches r LEFT JOIN message_references m ON r.source='email' AND r.source_id=m.id LEFT JOIN sheet_rows s ON r.source='sheet' AND r.source_id=s.id WHERE r.state IN ('needs_review','conflict','email_only','sheet_only') ORDER BY r.id LIMIT 100").all();
@@ -160,7 +166,7 @@ async function route(request: Request, env: Env, principal: Principal): Promise<
   if (path === "/data" && request.method === "DELETE") {
     const body = await readJson(request); if (body.confirmation !== "DELETE ALL JOB DATA") throw new Problem(400, "confirmation_required");
     const tables = ["follow_up_tasks", "manual_overrides", "reconciliation_matches", "application_events", "classification_decisions", "message_folders", "message_references", "sheet_versions", "sheet_rows", "applications", "organizations", "connections", "oauth_states", "sync_state", "sync_runs", "ai_usage"];
-    await db.batch([...tables.map((table) => db.prepare(`DELETE FROM ${table}`)),db.prepare("DELETE FROM app_metadata WHERE key IN ('local_outlook_last_import','local_outlook_last_automated_import')"),db.prepare("INSERT INTO app_metadata VALUES('sync_paused','true') ON CONFLICT(key) DO UPDATE SET value='true'"),db.prepare("INSERT INTO app_metadata VALUES('sheets_paused','true') ON CONFLICT(key) DO UPDATE SET value='true'")]); return Response.json({ deleted: true });
+    await db.batch([...tables.map((table) => db.prepare(`DELETE FROM ${table}`)),db.prepare("DELETE FROM app_metadata WHERE key IN ('local_outlook_last_import','local_outlook_last_automated_import')"),db.prepare("INSERT INTO app_metadata(key,value) VALUES('job_data_generation',lower(hex(randomblob(16)))) ON CONFLICT(key) DO UPDATE SET value=excluded.value"),db.prepare("INSERT INTO app_metadata VALUES('sync_paused','true') ON CONFLICT(key) DO UPDATE SET value='true'"),db.prepare("INSERT INTO app_metadata VALUES('sheets_paused','true') ON CONFLICT(key) DO UPDATE SET value='true'")]); return Response.json({ deleted: true });
   }
   throw new Problem(404, "route_not_found");
 }

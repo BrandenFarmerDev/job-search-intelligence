@@ -3,12 +3,13 @@ import { JobSyncWorkflow, retryDelay, type SyncParameters } from "./workflow";
 import * as sync from "./services/sync";
 import { fixture } from "./test/fixtures";
 import { Problem } from "./services/security";
+import { intelligenceRoute } from "./routes/intelligence";
 import type { WorkflowEvent, WorkflowStep } from "cloudflare:workers";
 vi.mock("./services/sync",async(importOriginal)=>({...await importOriginal<typeof import("./services/sync")>(),ingestGraphPage:vi.fn(),processMessages:vi.fn(),syncSheets:vi.fn(),retain:vi.fn()}));
 afterEach(()=>vi.resetAllMocks());
 function workflow(env:Env,id="run",continuation?:number) {
  const instance=new JobSyncWorkflow({} as ExecutionContext,env);
- const event={instanceId:id,payload:{trigger:"manual" as const,continuation},timestamp:new Date()} as WorkflowEvent<SyncParameters>;
+ const event={instanceId:id,payload:{trigger:"manual" as const,expectedGeneration:"0".repeat(32),continuation},timestamp:new Date()} as WorkflowEvent<SyncParameters>;
  const step={do:vi.fn(async(_name:string,_options:unknown,callback:()=>Promise<unknown>)=>callback())} as unknown as WorkflowStep;
  return {instance,event,step};
 }
@@ -41,7 +42,7 @@ it("hands a large backlog to a continuation only after recording the slice and r
  vi.mocked(env.JOB_SYNC.create).mockImplementation(async()=>{leaseAtHandOff=await db.prepare("SELECT owner FROM sync_locks").first();statusAtHandOff=(await db.prepare("SELECT status FROM sync_runs WHERE id='batches'").first())?.status;return {id:"next"} as WorkflowInstance;});
  const batches=workflow(env,"batches");expect(await batches.instance.run(batches.event,batches.step)).toMatchObject({processed:40});
  expect(sync.processMessages).toHaveBeenCalledTimes(2);expect(sync.processMessages).toHaveBeenCalledWith(env,"batches",20);expect(sync.syncSheets).not.toHaveBeenCalled();
- expect(env.JOB_SYNC.create).toHaveBeenCalledWith({params:{trigger:"manual",continuation:1}});expect(leaseAtHandOff).toBeNull();expect(statusAtHandOff).toBe("continued");
+ expect(env.JOB_SYNC.create).toHaveBeenCalledWith({params:{trigger:"manual",expectedGeneration:"0".repeat(32),continuation:1}});expect(leaseAtHandOff).toBeNull();expect(statusAtHandOff).toBe("continued");
  // An unfinished slice never counts as the last successful sync.
  expect((await db.prepare("SELECT error_code FROM sync_runs WHERE id='batches'").first())?.error_code).toBeNull();
  // A failed hand-off keeps the recorded slice and flags it; the backlog stays in D1 for the next trigger.
@@ -62,12 +63,38 @@ it("continues changed sheet rows with the lease released and retains only after 
  vi.mocked(sync.syncSheets).mockResolvedValueOnce({changed:15,unchanged:27,missing:0,more:true}).mockResolvedValue({changed:1,unchanged:42,missing:2});
  const first=workflow(env,"sheet-first");await first.instance.run(first.event,first.step);
  expect(sync.syncSheets).toHaveBeenCalledWith(env,"sheet-first",15);expect(sync.retain).not.toHaveBeenCalled();
- expect((await db.prepare("SELECT status FROM sync_runs WHERE id='sheet-first'").first())?.status).toBe("continued");expect(await db.prepare("SELECT owner FROM sync_locks").first()).toBeNull();expect(env.JOB_SYNC.create).toHaveBeenCalledWith({params:{trigger:"manual",continuation:1}});
+ expect((await db.prepare("SELECT status FROM sync_runs WHERE id='sheet-first'").first())?.status).toBe("continued");expect(await db.prepare("SELECT owner FROM sync_locks").first()).toBeNull();expect(env.JOB_SYNC.create).toHaveBeenCalledWith({params:{trigger:"manual",expectedGeneration:"0".repeat(32),continuation:1}});
  const last=workflow(env,"sheet-last",1);await last.instance.run(last.event,last.step);expect(sync.retain).toHaveBeenCalledTimes(1);expect((await db.prepare("SELECT status FROM sync_runs WHERE id='sheet-last'").first())?.status).toBe("completed");
  vi.mocked(sync.syncSheets).mockResolvedValue({changed:15,unchanged:0,missing:0,more:true});const capped=workflow(env,"sheet-capped",50);await expect(capped.instance.run(capped.event,capped.step)).rejects.toThrow();expect((await db.prepare("SELECT error_code FROM sync_runs WHERE id='sheet-capped'").first())?.error_code).toBe("processing_limit_resume_required");close();
 });
 it("never repopulates deleted data from queued or scheduled syncs until explicit reconnect",async()=>{
  const {env,db,close}=fixture();await db.prepare("INSERT INTO app_metadata VALUES('sync_paused','true')").run();const paused=workflow(env,"queued-before-delete");expect(await paused.instance.run(paused.event,paused.step)).toEqual({status:"skipped_paused"});expect(sync.ingestGraphPage).not.toHaveBeenCalled();expect(sync.syncSheets).not.toHaveBeenCalled();expect(await db.prepare("SELECT id FROM sync_runs").first()).toBeNull();close();
+});
+it("does not run a queued pre-delete Workflow after owner reconnect clears the pause",async()=>{
+ const {env,db,close}=fixture();const principal={kind:"owner" as const,id:"owner"};
+ await intelligenceRoute(new Request("https://api.example.com/api/job-intelligence/data",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({confirmation:"DELETE ALL JOB DATA"})}),env,principal);
+ const reconnect={format:"job-search-intelligence.outlook-com.v1",accountId:"a".repeat(64),exportedAt:"2026-10-02T00:00:00Z",since:"2026-09-30T07:00:00Z",summary:{truncated:false},messages:[]};
+ await intelligenceRoute(new Request("https://api.example.com/api/job-intelligence/local-outlook/import",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(reconnect)}),env,principal);
+ expect((await db.prepare("SELECT value FROM app_metadata WHERE key='sync_paused'").first())?.value).toBe("false");
+ const queued=workflow(env,"queued-before-reconnect");expect(await queued.instance.run(queued.event,queued.step)).toEqual({status:"skipped_stale_generation"});
+ expect(await db.prepare("SELECT id FROM sync_runs").first()).toBeNull();expect(await db.prepare("SELECT owner FROM sync_locks").first()).toBeNull();expect(sync.ingestGraphPage).not.toHaveBeenCalled();expect(sync.syncSheets).not.toHaveBeenCalled();close();
+});
+it("fails closed without generation metadata before a Workflow acquires a lease",async()=>{
+ const {env,db,close}=fixture();await db.prepare("DELETE FROM app_metadata WHERE key='job_data_generation'").run();const missing=workflow(env,"missing-epoch");
+ await expect(missing.instance.run(missing.event,missing.step)).rejects.toMatchObject({status:503,code:"data_generation_unavailable"});
+ expect(await db.prepare("SELECT owner FROM sync_locks").first()).toBeNull();expect(await db.prepare("SELECT id FROM sync_runs").first()).toBeNull();close();
+});
+it.each([true,false])("fences a deletion interleaved with lease acquisition (acquired=%s)",async(acquired)=>{
+ const {env,db,close}=fixture();const acquire=sync.acquireLease;
+ vi.spyOn(sync,"acquireLease").mockImplementationOnce(async(database,owner,maintenance)=>{
+  await database.prepare("UPDATE app_metadata SET value='new-dataset' WHERE key='job_data_generation'").run();
+  return acquired ? acquire(database,owner,maintenance) : false;
+ });
+ const queued=workflow(env,"interleaved");
+ expect(await queued.instance.run(queued.event,queued.step)).toEqual({status:acquired ? "skipped_stale_generation" : "skipped_overlap"});
+ expect(await db.prepare("SELECT id FROM sync_runs").first()).toBeNull();
+ expect(await db.prepare("SELECT owner FROM sync_locks").first()).toBeNull();
+ expect(sync.ingestGraphPage).not.toHaveBeenCalled();expect(sync.syncSheets).not.toHaveBeenCalled();close();
 });
 it("keeps Microsoft Graph out of the version-one workflow",async()=>{
  const {env,close}=fixture();env.MICROSOFT_GRAPH_ENABLED="false";vi.mocked(sync.processMessages).mockResolvedValue(0);vi.mocked(sync.syncSheets).mockResolvedValue({changed:0,unchanged:0,missing:0});
