@@ -328,11 +328,27 @@ function Reset-ReconciliationForStaleQueue([object]$Values) {
   $collectionPath=Get-StatePath 'collection-state.dpapi'
   if(Test-Path -LiteralPath $collectionPath){Remove-Item -LiteralPath $collectionPath -Force}
 }
+function Find-SourceRepositoryRoot([string]$Path) {
+  $current=[IO.DirectoryInfo]([IO.Path]::GetFullPath($Path))
+  while($null -ne $current){
+    $gitMarker=Join-Path $current.FullName '.git'
+    $appSource=(Test-Path -LiteralPath (Join-Path $current.FullName 'package.json') -PathType Leaf) -and
+      (Test-Path -LiteralPath (Join-Path $current.FullName 'scripts/outlook-automation.ps1') -PathType Leaf) -and
+      (Test-Path -LiteralPath (Join-Path $current.FullName 'app/frontend') -PathType Container) -and
+      (Test-Path -LiteralPath (Join-Path $current.FullName 'app/backend') -PathType Container)
+    if((Test-Path -LiteralPath $gitMarker) -or $appSource){return $current.FullName.TrimEnd([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar)}
+    $current=$current.Parent
+  }
+  return $null
+}
 function Initialize-State {
   $script:StateRoot = if ($StateDirectory) { $StateDirectory } elseif ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'JobSearchIntelligence' } else { Join-Path ([IO.Path]::GetTempPath()) 'JobSearchIntelligence' }
   $script:StateRoot=[IO.Path]::GetFullPath($script:StateRoot)
-  $repository=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..')).TrimEnd([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar)
-  if($script:StateRoot.Equals($repository,[StringComparison]::OrdinalIgnoreCase) -or $script:StateRoot.StartsWith($repository+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)){throw 'Private Outlook state must be outside the repository.'}
+  $scriptRepository=Find-SourceRepositoryRoot $PSScriptRoot
+  $stateRepository=Find-SourceRepositoryRoot $script:StateRoot
+  foreach($repository in @($scriptRepository,$stateRepository)){
+    if($repository -and ($script:StateRoot.Equals($repository,[StringComparison]::OrdinalIgnoreCase) -or $script:StateRoot.StartsWith($repository.TrimEnd([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar)+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase))){throw 'Private Outlook state must be outside the repository.'}
+  }
   Import-Module (Join-Path $PSScriptRoot 'outlook-private-runtime.psm1') -Force
   Protect-PrivateDirectory $script:StateRoot
   foreach ($name in 'logs', 'work') { Protect-PrivateDirectory (Get-StatePath $name) }

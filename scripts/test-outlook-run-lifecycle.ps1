@@ -315,6 +315,7 @@ try {
   Assert-Run ($expiredRun -eq 8) 'expired wall-clock budget returns the documented retryable exit code'
   Assert-Run ($script:GenerationRequests -eq $apiBeforeBudget -and $script:CollectorRequests -eq $collectorBeforeBudget) 'expired run budget makes no API or collector requests'
   Assert-Run ((Test-Path -LiteralPath $queuePath) -and (Test-Path -LiteralPath $workArtifact)) 'expired run preserves durable queue and work marker'
+  & (Join-Path $PSScriptRoot 'test-outlook-installed-state.ps1')
   Write-Output 'Synthetic Outlook Invoke-Run lifecycle tests passed.'
 } finally {
   if(Test-Path -LiteralPath $stateRoot){Remove-Item -LiteralPath $stateRoot -Recurse -Force}
