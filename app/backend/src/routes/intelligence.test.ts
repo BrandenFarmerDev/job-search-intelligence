@@ -5,9 +5,10 @@ import { analytics, csv } from "../services/dashboard";
 import { reconcile } from "../services/reconciliation";
 import type { ApplicationRecord } from "@job-search/shared";
 import type { Principal } from "../services/security";
+import * as generation from "../services/data-generation";
 afterEach(()=>vi.restoreAllMocks());
 function caller(env:Env,principal:Principal={kind:"owner",id:"owner-sub"}) {
- return (path:string,method="GET",body?:object)=>intelligenceRoute(new Request(`https://api.example.com/api/job-intelligence${path}`,{method,headers:body?{"Content-Type":"application/json"}:{},body:body?JSON.stringify(body):undefined}),env,principal);
+ return (path:string,method="GET",body?:object,extraHeaders:Record<string,string>={})=>intelligenceRoute(new Request(`https://api.example.com/api/job-intelligence${path}`,{method,headers:{...(body?{"Content-Type":"application/json"}:{}),...extraHeaders},body:body?JSON.stringify(body):undefined}),env,principal);
 }
 const manual={company:"ExampleCo",role:"Engineer",applied_at:"2026-09-01",status:"application_submitted"};
 it("creates auditable owner records, searches/filters/pages safely, exports and exposes evidence",async()=>{
@@ -63,13 +64,36 @@ it("accepts only bounded local Outlook import batches",async()=>{
  expect((await db.prepare("SELECT folder FROM message_folders").first())?.folder).toBe("sentitems");await expect(call("/local-outlook/import","POST",{...body,accountId:"bad"})).rejects.toMatchObject({status:400});close();
 });
 it("lets automation import and queue syncs without ever resuming paused imports",async()=>{
- const {env,db,close}=fixture();const owner=caller(env);const auto=caller(env,{kind:"automation",id:"automation"});const body={format:"job-search-intelligence.outlook-com.v1",accountId:"a".repeat(64),exportedAt:"2026-10-02T00:00:00Z",since:"2026-09-30T07:00:00Z",summary:{truncated:false},messages:[]};
+ const {env,db,close}=fixture();const owner=caller(env);const auto=caller(env,{kind:"automation",id:"automation"});const generation=(await owner("/sync-runs")).headers.get("X-Job-Data-Generation")!;const header={"X-Job-Data-Generation":generation};const body={format:"job-search-intelligence.outlook-com.v1",accountId:"a".repeat(64),exportedAt:"2026-10-02T00:00:00Z",since:"2026-09-30T07:00:00Z",summary:{truncated:false},messages:[]};
  const meta=async(key:string)=>(await db.prepare("SELECT value FROM app_metadata WHERE key=?").bind(key).first<{value:string}>())?.value;
- expect(await (await auto("/local-outlook/import","POST",body)).json()).toEqual({imported:0});expect(await meta("local_outlook_last_automated_import")).toBe("2026-10-02T00:00:00.000Z");expect((await (await auto("/dashboard")).json() as {localOutlookLastAutomatedAt:string}).localOutlookLastAutomatedAt).toBe("2026-10-02T00:00:00.000Z");
- expect((await auto("/sync/run","POST")).status).toBe(202);expect(env.JOB_SYNC.create).toHaveBeenLastCalledWith({params:{trigger:"automation"}});expect((await owner("/sync/run","POST")).status).toBe(202);expect(env.JOB_SYNC.create).toHaveBeenLastCalledWith({params:{trigger:"manual"}});
+ expect(await (await auto("/local-outlook/import","POST",body,header)).json()).toEqual({imported:0});expect(await meta("local_outlook_last_automated_import")).toBe("2026-10-02T00:00:00.000Z");expect((await (await auto("/dashboard")).json() as {localOutlookLastAutomatedAt:string}).localOutlookLastAutomatedAt).toBe("2026-10-02T00:00:00.000Z");
+ expect((await auto("/sync/run","POST")).status).toBe(202);expect(env.JOB_SYNC.create).toHaveBeenLastCalledWith({params:{trigger:"automation",expectedGeneration:generation}});expect((await owner("/sync/run","POST")).status).toBe(202);expect(env.JOB_SYNC.create).toHaveBeenLastCalledWith({params:{trigger:"manual",expectedGeneration:generation}});
  await owner("/applications","POST",manual);await owner("/data","DELETE",{confirmation:"DELETE ALL JOB DATA"});expect(await meta("local_outlook_last_automated_import")).toBeUndefined();
- await expect(auto("/local-outlook/import","POST",body)).rejects.toMatchObject({status:409,code:"reconnect_sources_to_resume"});expect(await meta("sync_paused")).toBe("true");expect(await meta("local_outlook_last_automated_import")).toBeUndefined();
+ await expect(auto("/local-outlook/import","POST",body,header)).rejects.toMatchObject({status:409,code:"stale_data_generation"});expect(await meta("sync_paused")).toBe("true");expect(await meta("local_outlook_last_automated_import")).toBeUndefined();
  await owner("/local-outlook/import","POST",body);expect(await meta("sync_paused")).toBe("false");expect(await meta("local_outlook_last_automated_import")).toBeUndefined();close();
+});
+it("does not queue a manual sync when deletion pauses sources during its generation snapshot",async()=>{
+ const {env,db,close}=fixture();const owner=caller(env);let deleted=false;const readGeneration=generation.dataGeneration;
+ vi.spyOn(generation,"dataGeneration").mockImplementation(async(database)=>{
+  if(!deleted){deleted=true;await db.batch([db.prepare("UPDATE app_metadata SET value=? WHERE key='job_data_generation'").bind("2".repeat(32)),db.prepare("INSERT INTO app_metadata(key,value) VALUES('sync_paused','true') ON CONFLICT(key) DO UPDATE SET value='true'")]);}
+  return readGeneration(database);
+ });
+ await expect(owner("/sync/run","POST")).rejects.toMatchObject({status:409,code:"reconnect_sources_to_resume"});
+ expect(env.JOB_SYNC.create).not.toHaveBeenCalled();close();
+});
+it("fences automated imports with the sync-runs generation across deletion and replay",async()=>{
+ const {env,db,close}=fixture();const owner=caller(env);const auto=caller(env,{kind:"automation",id:"automation"});
+ const message={immutableId:"b".repeat(64),folder:"inbox",subject:"Application receipt",sender:"jobs@example.com",excerpt:"Received",occurredAt:"2026-10-02T00:00:00Z",conversationId:"c",internetMessageId:"<receipt@example.com>",revision:"r1"};
+ const body={format:"job-search-intelligence.outlook-com.v1",accountId:"a".repeat(64),exportedAt:"2026-10-02T00:00:00Z",since:"2026-09-30T07:00:00Z",summary:{truncated:false},messages:[message]};
+ const snapshot=await owner("/sync-runs");const generation=snapshot.headers.get("X-Job-Data-Generation");expect(generation).toMatch(/^[a-f0-9]{32}$/);expect(await snapshot.json()).toEqual([]);
+ await expect(auto("/local-outlook/import","POST",body)).rejects.toMatchObject({status:409,code:"data_generation_required"});
+ await auto("/local-outlook/import","POST",body,{"X-Job-Data-Generation":generation!}); // A lost response can be retried in the same generation.
+ await auto("/local-outlook/import","POST",body,{"X-Job-Data-Generation":generation!});
+ expect((await db.prepare("SELECT COUNT(*) AS count FROM message_references").first<{count:number}>())?.count).toBe(1);
+ await owner("/data","DELETE",{confirmation:"DELETE ALL JOB DATA"});const afterDelete=await owner("/sync-runs");const next=afterDelete.headers.get("X-Job-Data-Generation");expect(next).toMatch(/^[a-f0-9]{32}$/);expect(next).not.toBe(generation);
+ await expect(auto("/local-outlook/import","POST",body,{"X-Job-Data-Generation":generation!})).rejects.toMatchObject({status:409,code:"stale_data_generation"});
+ await expect(auto("/local-outlook/import","POST",body,{"X-Job-Data-Generation":next!})).rejects.toMatchObject({status:409,code:"reconnect_sources_to_resume"});
+ expect((await db.prepare("SELECT COUNT(*) AS count FROM message_references").first<{count:number}>())?.count).toBe(0);close();
 });
 it("rejects capped local Outlook exports instead of treating partial history as complete",async()=>{
  const {env,close}=fixture();const call=caller(env);const body={format:"job-search-intelligence.outlook-com.v1",accountId:"a".repeat(64),exportedAt:"2026-10-01T00:00:00Z",since:"2026-09-30T07:00:00Z",summary:{truncated:true},messages:[]};

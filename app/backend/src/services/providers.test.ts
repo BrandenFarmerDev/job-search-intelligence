@@ -75,6 +75,16 @@ it("validates and idempotently imports bounded classic Outlook bundles",async()=
  for(const invalid of [{...bundle,format:"bad"},{...bundle,messages:Array(41).fill(item)},{...bundle,messages:[{...item,occurredAt:"2026-09-01"}]},{...bundle,messages:[item,item]},{...bundle,accountId:"bad"}])expect(()=>parseLocalOutlookBatch(invalid,env.HISTORICAL_START_DATE)).toThrow();
  close();
 });
+it("rolls back every automated import write when generation metadata disappears at commit",async()=>{
+ const {env,db,close}=fixture();const item={immutableId:"c".repeat(64),folder:"inbox",subject:"Receipt",sender:"jobs@example.com",excerpt:"Received",occurredAt:"2026-10-02T00:00:00Z",conversationId:"c",internetMessageId:"<m@example.com>",revision:"r1"};
+ const bundle={format:"job-search-intelligence.outlook-com.v1",accountId:"d".repeat(64),exportedAt:"2026-10-02T00:00:00Z",since:"2026-09-30T07:00:00Z",summary:{truncated:false as const},messages:[item]};
+ const originalBatch=db.batch.bind(db);vi.spyOn(db,"batch").mockImplementationOnce(async(statements)=>{await db.prepare("DELETE FROM app_metadata WHERE key='job_data_generation'").run();return originalBatch(statements);});
+ await expect(ingestLocalOutlookBatch(env,bundle,true,"0".repeat(32))).rejects.toMatchObject({status:409,code:"stale_data_generation"});
+ expect((await db.prepare("SELECT COUNT(*) AS count FROM message_references").first<{count:number}>())?.count).toBe(0);
+ expect((await db.prepare("SELECT COUNT(*) AS count FROM message_folders").first<{count:number}>())?.count).toBe(0);
+ expect(await db.prepare("SELECT value FROM app_metadata WHERE key='local_outlook_last_import'").first()).toBeNull();
+ expect(await db.prepare("SELECT provider FROM sync_state WHERE provider='outlook_local'").first()).toBeNull();close();
+});
 it("uses Internet Message-ID to preserve references during the later Graph transition",async()=>{
  expect(normalizeInternetMessageId(" <Message@Example.COM> ")).toBe("<message@example.com>");
  expect(await emailReferenceId("outlook-local:account","local","<Message@Example.COM>")).toBe(await emailReferenceId("graph-account","immutable"," <message@example.com> "));

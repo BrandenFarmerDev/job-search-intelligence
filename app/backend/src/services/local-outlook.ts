@@ -1,5 +1,6 @@
 import { digest, Problem, text } from "./security";
 import { emailReferenceId } from "./email-identity";
+import { assertGeneration, dataGeneration, generationGuard } from "./data-generation";
 
 const format = "job-search-intelligence.outlook-com.v1";
 const folders = new Set(["inbox", "sentitems"]);
@@ -53,8 +54,9 @@ export function parseLocalOutlookBatch(value: Record<string, unknown>, historica
   });
   return { format, accountId: String(value.accountId), exportedAt, since, summary: { truncated: false }, messages };
 }
-export async function ingestLocalOutlookBatch(env: Env, value: Record<string, unknown>, automated = false): Promise<{imported:number}> {
+export async function ingestLocalOutlookBatch(env: Env, value: Record<string, unknown>, automated = false, expectedGeneration: string | null = null): Promise<{imported:number}> {
   const batch = parseLocalOutlookBatch(value, env.HISTORICAL_START_DATE); const now = new Date().toISOString();
+  if (automated) assertGeneration(expectedGeneration, await dataGeneration(env.JOB_SEARCH_DB));
   const graph = await env.JOB_SEARCH_DB.prepare("SELECT 1 AS connected FROM connections WHERE provider='microsoft'").first();
   if (env.MICROSOFT_GRAPH_ENABLED === "true" && graph) throw new Problem(409, "graph_is_authoritative");
   // Automation never reconnects: after typed deletion only an owner action may resume imports.
@@ -69,10 +71,18 @@ export async function ingestLocalOutlookBatch(env: Env, value: Record<string, un
       .bind(id,account,message.immutableId,message.conversationId,message.internetMessageId,message.subject,message.sender,message.occurredAt,null,message.excerpt,hash,now));
     statements.push(env.JOB_SEARCH_DB.prepare("INSERT OR IGNORE INTO message_folders VALUES(?,?)").bind(id,message.folder));
   }
+  if (automated) statements.unshift(generationGuard(env.JOB_SEARCH_DB, expectedGeneration!));
   statements.push(env.JOB_SEARCH_DB.prepare("INSERT INTO app_metadata VALUES('local_outlook_last_import',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(batch.exportedAt));
   if (automated) statements.push(env.JOB_SEARCH_DB.prepare("INSERT INTO app_metadata VALUES('local_outlook_last_automated_import',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(batch.exportedAt));
   else statements.push(env.JOB_SEARCH_DB.prepare("INSERT INTO app_metadata VALUES('sync_paused','false') ON CONFLICT(key) DO UPDATE SET value='false'"));
   statements.push(env.JOB_SEARCH_DB.prepare("INSERT INTO sync_state VALUES('outlook_local',?,?,?) ON CONFLICT(provider,scope) DO UPDATE SET cursor=excluded.cursor,updated_at=excluded.updated_at").bind(batch.accountId,batch.exportedAt,now));
-  await env.JOB_SEARCH_DB.batch(statements);
+  try { await env.JOB_SEARCH_DB.batch(statements); }
+  catch (error) {
+    if (automated) {
+      const row = await env.JOB_SEARCH_DB.prepare("SELECT value FROM app_metadata WHERE key='job_data_generation'").first<{value:string}>();
+      if (!row?.value || row.value !== expectedGeneration) throw new Problem(409, "stale_data_generation");
+    }
+    throw error;
+  }
   return { imported: batch.messages.length };
 }

@@ -12,6 +12,7 @@ export function hardenResponse(response: Response, allowedOrigin: string | null)
   response.headers.set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
   response.headers.set("Vary", "Origin");
   response.headers.set("X-Request-Id", crypto.randomUUID());
+  response.headers.set("Access-Control-Expose-Headers", "X-Job-Data-Generation");
   if (allowedOrigin) {
     response.headers.set("Access-Control-Allow-Origin", allowedOrigin);
     response.headers.set("Access-Control-Allow-Credentials", "true");

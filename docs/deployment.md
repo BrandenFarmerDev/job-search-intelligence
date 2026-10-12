@@ -56,6 +56,20 @@ Owner decision, October 10, 2026 (details in [local Outlook fallback](outlook-lo
 
 Live acceptance completed October 10 after PRs #10 and #11 deployed. The larger tracker required bounded Sheets slices as well as bounded message classification; all follow-on runs completed. Bitwarden holds the verified client ID/secret pair. The installed script replay and an on-demand Task Scheduler launch preserved message/application/event/tracker counts, and the task is now enabled for 07:00 Pacific and ten minutes after logon. See [QA evidence](qa.md#production-verification-of-pr-10--october-10-2026) for versions, counts and the guarded recovery of the stopped Workflow's lease. This PC must have the owner's Windows session signed in for Outlook COM.
 
+### Pending guarded-queue and mailbox-cleanup release
+
+The owner approved implementation of both [Outlook plans](outlook-plans-qa.md) on October 11. This approval covers read-only mailbox inventory and the exact empty-folder taxonomy; it does not authorize merging/deploying this release or moving/deleting unspecified mail.
+
+The owner's later October 11 instruction authorizes fixing the provider blockers, validated release/merge, resolving outstanding PRs and old branches, and live cleanup once safe. The implementation approval above is historical. This release must still pass its code, provider, capture, backup and exact-action review checks; the later instruction does not make failed or missing evidence pass. Retain uncertain mail for review and use same-store Deleted Items rather than permanent deletion.
+
+This release adds migration `0004_data_generation.sql`. Apply it before the new Worker; never remove/reset its generation metadata during rollback. The new Worker rejects automated imports without the current generation and invalidates old queued Workflow events. Keep the automation allowlist, Access owner policy, Graph/AI/cron settings and billing unchanged.
+
+Release order: record the old task definition/state and installed hashes; disable only the Outlook task and wait for its shared mutex holder; install/verify the compatible client unit while holding the mutex and leave its durable maintenance gate enabled. Deploy the generation-enforcing Worker under separate release authorization. Verify the authenticated generation header and client binding before production import. There is no temporary acceptance of unguarded automated imports. An old client fails closed against the new server; a new client fails closed against a server missing the header.
+
+Accept approved-folder discovery, bounded/resumable capture, encrypted queue replay and unchanged evidence before mail moves. Specific Junk candidates need their own exact manifest capture approval. Require fresh owner-read D1 counts for pending messages/tracker rows/running history/active leases and terminal Workflow evidence at controlled acceptance; exit 0 or recent run history alone is insufficient. The idle proof must record the current `app_metadata.job_data_generation` as `dataGeneration`, matching the accepted capture's `captureGeneration`; a later data deletion invalidates that capture. Only then restore the previously approved task state through maintenance completion. Preserve all unacknowledged queues, encrypted backups and journals on failure.
+
+Mailbox actions are a later gate: exact manifest approval, explicit backup ceiling/location/retention, verified Unicode MSG backups and isolated PST restore proof, accepted pre-move capture and fresh backend idle proof. The one-time utility moves approved non-job items to same-store Deleted Items, never purges. Rollback after organized mail exists must preserve subtree coverage; an old Inbox/Sent-only collector stays disabled unless the mailbox is separately restored and accepted. Provider/installed acceptance for this new release remains unverified until recorded in QA.
+
 ## GitHub administration
 
 Repository: `BrandenFarmerDev/job-search-intelligence`. Main ruleset `24341809` was copied from portfolio `24193519`: PR required, updated branch, required `Quality gates` and `Analyze JavaScript and TypeScript`, no force push/deletion or bypass.
