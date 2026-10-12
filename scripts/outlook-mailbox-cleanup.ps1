@@ -50,7 +50,7 @@ function Get-ActionRows($Manifest) { return ,@($Manifest.items|Where-Object{$_.a
 function Get-RequiredCaptureRows($Manifest){
   $floor=[datetime]::Parse('2026-09-30T07:00:00Z',[Globalization.CultureInfo]::InvariantCulture,[Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()
   $evidence=@('Application receipts','Recruiter follow-ups','Interviews','Assessments','Offers','Rejections')
-  return ,@($Manifest.items|Where-Object{if($_.action -ne 'move' -or $_.class -notin $evidence -or -not $_.receivedAt){return $false};try{$date=ConvertTo-CleanupUtcDate $_.receivedAt;return $date -ge $floor}catch{return $false}})
+  return ,@($Manifest.items|Where-Object{if($_.action -ne 'move' -or $_.class -notin $evidence -or -not (Get-Field $_ 'actionEligible' $false) -or -not (Get-Field $_ 'evidenceComplete' $false) -or -not $_.receivedAt){return $false};try{$date=ConvertTo-CleanupUtcDate $_.receivedAt;return $date -ge $floor}catch{return $false}})
 }
 function Get-ActionRowsNeedingBackup($Manifest,$Journal) {$result=[Collections.Generic.List[object]]::new();foreach($row in @($Manifest.items)){if($row.action -in 'move','delete_to_deleted_items' -and (Get-JournalStatus $Journal $row.rowId) -notin 'backup_verified','move_started','completed'){$result.Add($row)}};return ,$result.ToArray()}
 function Get-CandidateSetHash($Rows) {
@@ -59,13 +59,20 @@ function Get-CandidateSetHash($Rows) {
 }
 function ConvertTo-HtmlEncoded([object]$Value){return [System.Net.WebUtility]::HtmlEncode([string]$Value)}
 function Assert-ManifestActionScope($Manifest) {
+  if([int](Get-Field $Manifest 'schemaVersion' 0) -ne 2 -or [string](Get-Field $Manifest 'schema' '') -cne 'outlook-cleanup-manifest.v2' -or [string](Get-Field $Manifest 'ruleVersion' '') -cne 'cleanup-rules-2026-10-11.2' -or [string](Get-Field $Manifest 'utilityVersion' '') -cne '1.0.0'){throw 'Manifest schema, classifier rules, or tool version is stale or unsupported.'}
   if(@($Manifest.sources).Count -ne 2 -or [string]::IsNullOrWhiteSpace([string]$Manifest.sources[0].folderId) -or [string]::IsNullOrWhiteSpace([string]$Manifest.sources[1].folderId) -or [string]$Manifest.sources[0].folderId -ceq [string]$Manifest.sources[1].folderId -or [int]$Manifest.sources[0].defaultFolderId -ne 6 -or [int]$Manifest.sources[1].defaultFolderId -ne 23 -or [string]$Manifest.sources[0].folder -cne 'Inbox' -or [string]$Manifest.sources[1].folder -cne 'Junk'){throw 'Manifest source folders must be exactly the selected account Inbox and Junk defaults.'}
   $allowedFolders=@($Manifest.sources|ForEach-Object{[string]$_.folderId})
-  $seen=@{}
+  $seen=@{};$seenPhysical=@{};$hasIncompleteEvidence=$false
   foreach($row in @($Manifest.items)){
     $rowId=[string]$row.rowId
     if($rowId -notmatch '^[0-9a-f]{64}$' -or $seen.ContainsKey($rowId)){throw 'Manifest physical row keys must be unique opaque SHA-256 values.'};$seen[$rowId]=$true
     if([string]$row.storeId -cne [string]$Manifest.storeId -or [string]$row.folderId -notin $allowedFolders){throw 'Manifest item escaped the selected store or direct Inbox/Junk source scope.'}
+    $physicalEntry=[string](Get-Field $row 'entryId' '');if($physicalEntry){$physicalKey=[string]$row.storeId+'|'+[string]$row.folderId+'|'+$physicalEntry;if($seenPhysical.ContainsKey($physicalKey)){throw 'Manifest contains duplicate physical store/folder/EntryID locators.'};$seenPhysical[$physicalKey]=$true}
+    if($row.action -eq 'review' -or -not [bool](Get-Field $row 'evidenceComplete' $false)){$hasIncompleteEvidence=$true}
+    if($row.action -eq 'review' -and [bool](Get-Field $row 'evidenceComplete' $false)){throw 'Review rows cannot claim complete classified evidence.'}
+    if($row.action -in 'move','delete_to_deleted_items' -and ([string]::IsNullOrWhiteSpace([string]$row.entryId) -or [string]::IsNullOrWhiteSpace([string]$row.fingerprint) -or [string]::IsNullOrWhiteSpace([string]$row.bodyHash) -or [string]::IsNullOrWhiteSpace([string]$row.modifiedAt) -or [string]::IsNullOrWhiteSpace([string]$row.receivedAt) -or [string]::IsNullOrWhiteSpace([string]$row.bodyStatus) -or [string]::IsNullOrWhiteSpace([string]$row.flagStatus) -or [string]::IsNullOrWhiteSpace([string]$row.unreadStatus) -or [string]::IsNullOrWhiteSpace([string]$row.attachmentStatus) -or [string]::IsNullOrWhiteSpace([string](Get-Field $row 'categoriesStatus' '')))){throw 'Action candidate is missing required identity, timestamp, body, or state evidence.'}
+    if($row.action -in 'move','delete_to_deleted_items'){$flagValue=-1;$receivedValue=$null;$modifiedValue=$null;try{$flagValue=[int]$row.flagStatus;$receivedValue=ConvertTo-CleanupUtcDate $row.receivedAt;$modifiedValue=ConvertTo-CleanupUtcDate $row.modifiedAt}catch{};if([string]$row.bodyStatus -ne 'complete' -or [string]$row.unreadStatus -ne 'readable' -or [string]$row.attachmentStatus -ne 'readable' -or [string]$row.categoriesStatus -ne 'readable' -or $flagValue -lt 0 -or $flagValue -gt 2 -or $null -eq $receivedValue -or $null -eq $modifiedValue){throw 'Action candidate required state values are unreadable or invalid.'}}
+    if($row.action -in 'move','delete_to_deleted_items' -and (-not [bool](Get-Field $row 'actionEligible' $false) -or -not [bool](Get-Field $row 'evidenceComplete' $false) -or [string](Get-Field $row 'bodyStatus' '') -ne 'complete' -or [bool](Get-Field $row 'protected' $false) -or [bool](Get-Field $row 'inaccessible' $false))){throw 'Action candidate lacks complete eligible item evidence.'}
     if(([string]$row.folderId -ceq [string]$Manifest.sources[0].folderId -and [string]$row.folder -cne 'Inbox') -or ([string]$row.folderId -ceq [string]$Manifest.sources[1].folderId -and [string]$row.folder -cne 'Junk E-mail')){throw 'Manifest item folder label does not match its approved direct source folder.'}
     if($row.action -eq 'delete_to_deleted_items'){
       if($row.class -cne 'Delete candidate' -or $row.destination -cne 'Delete candidate'){throw 'Only explicit non-job delete candidates may move to Deleted Items.'}
@@ -73,6 +80,7 @@ function Assert-ManifestActionScope($Manifest) {
       if($script:Taxonomy -cnotcontains [string]$row.class -or [string]$row.destination -cne [string]$row.class){throw 'Move action destination must be exactly one approved job taxonomy child.'}
     }elseif($row.action -ne 'review'){throw 'Manifest contains a prohibited action; only same-store Move and Review are supported.'}
   }
+  if([bool](Get-Field $Manifest 'evidenceComplete' $false) -and $hasIncompleteEvidence){throw 'Manifest claims complete evidence while Review or incomplete-evidence rows remain.'}
 }
 function Set-JournalItem($Journal,[string]$RowId,$Updates) {
   $previous=Get-Field $Journal $RowId $null
@@ -90,9 +98,11 @@ function Get-Classification([string]$Subject,[string]$Body,[string]$Sender,[bool
   if($t -match '\b(verify your account|account suspended|urgent wire transfer|prize winner|crypto wallet|confirm your password|verify your password|click here to restore access|unusual sign-in activity)\b' -or $t -match '\b(password|account|payment)\b.{0,50}\b(click|link)\b.{0,30}\b(verify|confirm|restore|unlock)\b'){return @{Class='Review';Confidence='low';Reason='suspicious_content';Sensitive=$false}}
   if ($s -match '\b(job offer tips|special offer|limited offer|offer inside)\b') { $jobSignal=$false }
   $offer=($s -match '\b(offer letter|offer of employment|compensation package|background check|pre-employment)\b') -or ($b -match '\b(we are pleased to offer you (employment|the position)|offer of employment|compensation package|background check steps|pre-employment check)\b')
-  $reject=($s -match '\b(rejected|regret to inform|not moving forward|position has been filled|application unsuccessful|withdrawn|candidacy closed)\b') -or ($b -match '\b(regret to inform you|we will not be moving forward|not moving forward with your application|your candidacy is closed)\b')
+  $reject=($s -match '\b(rejected|regret to inform|not moving forward|position has been filled|application unsuccessful|withdrawn|candidacy closed)\b') -or ($b -match '\b(regret to inform you|we will not be moving forward|not moving forward with your application|your candidacy is closed|decided to move forward with other applicants)\b')
   $assessment=($s -match '\b(assessment|coding exercise|technical test|take-home|complete the test)\b') -or ($b -match '\b(please complete (the|our) (assessment|technical test|coding exercise)|assessment deadline|submit your exercise by)\b')
-  $interview=($s -match '\b(interview|schedule a call|screening call|availability for a call)\b') -or ($b -match '\b(invite you to (an? )?interview|schedule (an? )?interview|availability for (an? )?interview|would like to interview you)\b')
+  $conversational=($t -match '\b(next steps|availability|available|convenient time|reply with a time|tomorrow|role|resume|résumé|cv|applicant|candidate)\b')
+  $interview=($s -match '\b(interview|schedule a call|screening call|availability for a call)\b') -or ($b -match '\b(invite you to (an? )?interview|schedule (an? )?interview|availability for (an? )?interview|would like to interview you|availability for a call|would (monday|tuesday|wednesday|thursday|friday) at [0-9]|convenient time for (a call|an interview))\b')
+  if(-not $interview -and $t -match '\b(next steps|availability|available|convenient time|reply with a time|tomorrow)\b' -and $t -match '\b(role|resume|résumé|\bcv\b|applicant|candidate|application|recruiter|interview|position)\b'){return @{Class='Review';Confidence='low';Reason='recruiting_conversation_needs_review';Sensitive=$false}}
   $receipt=($s -match '\b(application received|application confirmation|thank you for applying|we received your application|submission confirmation)\b') -or ($b -match '\b(we have received your application|thank you for submitting your application|application was successfully submitted)\b')
   $otherSubstantive=0;foreach($signal in @($offer,$reject,$assessment)){if($signal){$otherSubstantive++}}
   if($otherSubstantive -gt 1 -or (($interview -or $receipt) -and ($offer -or $reject -or $assessment))){return @{Class='Review';Confidence='low';Reason='conflicting_current_purposes';Sensitive=$false}}
@@ -109,27 +119,34 @@ function Get-Classification([string]$Subject,[string]$Body,[string]$Sender,[bool
   return @{ Class='Delete candidate'; Confidence='high'; Reason= if ($sensitive) { 'confident_nonjob_sensitive' } else { 'no_job_evidence_with_complete_content' }; Sensitive=[bool]$sensitive }
 }
 function Get-ItemRecord($Item,[string]$StoreId,[string]$FolderId,[string]$FolderLabel) {
-  if([int](Get-Field $Item 'Class' 0) -ne 43){$entry=[string](Get-Field $Item 'EntryID' '');return [ordered]@{rowId=(Get-StringHash ($StoreId+'|'+$FolderId+'|unsupported|'+$entry));storeId=$StoreId;folderId=$FolderId;folder=$FolderLabel;entryId=$entry;searchKey='';internetMessageId='';conversationId='';receivedAt=$null;modifiedAt=$null;fingerprint='';bodyHash='';bodyLength=0;bodyStatus='unsupported';unread=$false;flagged=$false;categories='';attachmentCount=0;attachmentMetadata=@();class='Review';confidence='low';reason='unsupported_item_class';action='review';destination='Review';sensitive=$false;inaccessible=$false}}
+  if([int](Get-Field $Item 'Class' 0) -ne 43){$entry=[string](Get-Field $Item 'EntryID' '');return [ordered]@{rowId=(Get-StringHash ($StoreId+'|'+$FolderId+'|unsupported|'+$entry));storeId=$StoreId;folderId=$FolderId;folder=$FolderLabel;entryId=$entry;searchKey='';internetMessageId='';conversationId='';receivedAt=$null;modifiedAt=$null;fingerprint='';bodyHash='';bodyLength=0;bodyStatus='unsupported';unread=$false;unreadStatus='unknown';flagStatus='';flagged=$false;categories='';attachmentCount=0;attachmentStatus='unknown';attachmentMetadata=@();class='Review';confidence='low';reason='unsupported_item_class';action='review';destination='Review';sensitive=$false;inaccessible=$false;evidenceComplete=$false;actionEligible=$false;protected=$true}}
   $subject=[string](Get-Field $Item 'Subject' ''); $body=''; $bodyStatus='complete'
   try { $body=[string](Get-Field $Item 'Body' '') } catch { $bodyStatus='unavailable' }
-  $attachments=@();$attachmentCollection=Get-Field $Item 'Attachments'; try { for($i=1;$i -le [int](Get-Field $attachmentCollection 'Count' 0);$i++) { $a=$null;try{$a=$attachmentCollection.Item($i);$attachments+=@{ Name=[string](Get-Field $a 'FileName' ''); Size=[int](Get-Field $a 'Size' 0); Type=[int](Get-Field $a 'Type' 0) }}finally{if($a -and [Runtime.InteropServices.Marshal]::IsComObject($a)){[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($a)}} } } catch { $bodyStatus='incomplete' } finally{if($attachmentCollection -and [Runtime.InteropServices.Marshal]::IsComObject($attachmentCollection)){[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($attachmentCollection)}}
+  $attachments=@();$attachmentCollection=$null;$attachmentCountValue=$null;$attachmentStatus='unavailable';try{$attachmentCollection=$Item.Attachments;$attachmentCountValue=$attachmentCollection.Count;if($null -ne $attachmentCountValue -and [int]$attachmentCountValue -ge 0){$attachmentStatus='readable'}}catch{};try { if($attachmentStatus -ne 'readable'){throw 'attachment_count_unavailable'};for($i=1;$i -le [int]$attachmentCountValue;$i++) { $a=$null;try{$a=$attachmentCollection.Item($i);$attachments+=@{ Name=[string](Get-Field $a 'FileName' ''); Size=[int](Get-Field $a 'Size' 0); Type=[int](Get-Field $a 'Type' 0) }}finally{if($a -and [Runtime.InteropServices.Marshal]::IsComObject($a)){[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($a)}} } } catch { $bodyStatus='incomplete' } finally{if($attachmentCollection -and [Runtime.InteropServices.Marshal]::IsComObject($attachmentCollection)){[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($attachmentCollection)}}
   $sender=[string](Get-Field $Item 'SenderEmailAddress' '')
   $protected=[bool](Get-Field $Item 'Protected' $false)
   try{$permissionProperty=$Item.PSObject.Properties['Permission'];if($null -ne $permissionProperty){$permission=Get-Field $Item 'Permission' $null;if($null -eq $permission -or [int]$permission -ne 0){$protected=$true}}}catch{$protected=$true}
   try{$messageClassProperty=$Item.PSObject.Properties['MessageClass'];if($null -ne $messageClassProperty){$messageClass=Get-Field $Item 'MessageClass' $null;if($null -eq $messageClass -or [string]$messageClass -match '^IPM\.Note\.SMIME'){$protected=$true}}}catch{$protected=$true}
   $classification=Get-Classification $subject $body $sender ($attachments.Count -gt 0) $protected
   if ($bodyStatus -ne 'complete') { $classification=@{ Class='Review'; Confidence='low'; Reason='body_incomplete'; Sensitive=$false } }
-  $entry=[string](Get-Field $Item 'EntryID' '');$internet='';try{$internet=[string](Get-Field $Item 'InternetMessageID' '')}catch{};$conversation='';try{$conversation=[string](Get-Field $Item 'ConversationID' '')}catch{};$searchKey=''
-  $accessor=$null;try{$accessor=$Item.PropertyAccessor;$searchKey=[Convert]::ToBase64String([byte[]]$accessor.GetProperty('http://schemas.microsoft.com/mapi/proptag/0x300B0102'))}catch{}finally{if($accessor -and [Runtime.InteropServices.Marshal]::IsComObject($accessor)){[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($accessor)}}
-  $received=Get-Field $Item 'ReceivedTime'; $modified=Get-Field $Item 'LastModificationTime'
+  $entry=[string](Get-Field $Item 'EntryID' '');$internet='';$conversation='';try{$conversation=[string](Get-Field $Item 'ConversationID' '')}catch{};$searchKey=''
+  $accessor=$null;try{$accessor=$Item.PropertyAccessor;foreach($tag in @('0x1035001F','0x1035001E')){try{$internet=[string]$accessor.GetProperty('http://schemas.microsoft.com/mapi/proptag/'+$tag);if($internet){break}}catch{}};try{$searchKey=[Convert]::ToBase64String([byte[]]$accessor.GetProperty('http://schemas.microsoft.com/mapi/proptag/0x300B0102'))}catch{}}catch{}finally{if($accessor -and [Runtime.InteropServices.Marshal]::IsComObject($accessor)){[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($accessor)}}
+  $received=$null;$modified=$null;$timestampStatus='unavailable';try{$received=ConvertTo-CleanupUtcDate $Item.ReceivedTime;$modified=ConvertTo-CleanupUtcDate $Item.LastModificationTime;$timestampStatus='readable'}catch{$received=$null;$modified=$null}
+  $unreadValue=$null;$unreadStatus='unavailable';try{$unreadValue=$Item.UnRead;if($null -ne $unreadValue){$unreadStatus='readable'}}catch{}
+  $flagValue=$null;$flagStatus='';try{$flagValue=$Item.FlagStatus;if($null -ne $flagValue){$flagStatus=[string]$flagValue}}catch{}
+  $categoriesValue=$null;$categoriesStatus='unavailable';try{$categoriesValue=$Item.Categories;if($null -ne $categoriesValue){$categoriesStatus='readable'}}catch{}
+  $flagReadable=$false;try{if($null -ne $flagValue){$parsedFlag=[int]$flagValue;$flagReadable=($parsedFlag -ge 0 -and $parsedFlag -le 2)}}catch{}
+  $requiredStateReadable=($unreadStatus -eq 'readable' -and $flagReadable -and $attachmentStatus -eq 'readable' -and $categoriesStatus -eq 'readable' -and $timestampStatus -eq 'readable')
+  if(-not $requiredStateReadable){$classification=@{Class='Review';Confidence='low';Reason='required_item_state_unavailable';Sensitive=$false}}
   $rowKey=Get-StringHash ($StoreId+'|'+$FolderId+'|'+$entry+'|'+[string]$received+'|'+[guid]::NewGuid().ToString('N'))
   $fingerprint=Get-StringHash ($subject+'|'+$sender+'|'+$body)
   return [ordered]@{
     rowId=$rowKey; storeId=$StoreId; folderId=$FolderId; folder=$FolderLabel; entryId=$entry; searchKey=$searchKey; internetMessageId=$internet; conversationId=$conversation
     subject=$subject; sender=$sender; receivedAt= if($received){([datetime]$received).ToUniversalTime().ToString('o')}else{$null}
     modifiedAt= if($modified){([datetime]$modified).ToUniversalTime().ToString('o')}else{$null}; fingerprint=$fingerprint
-    bodyHash=(Get-StringHash $body); bodyLength=[Text.Encoding]::UTF8.GetByteCount($body); bodyStatus=$bodyStatus; unread=[bool](Get-Field $Item 'UnRead' $false); flagged=([int](Get-Field $Item 'FlagStatus' 0) -ne 0)
-    categories=[string](Get-Field $Item 'Categories' ''); attachmentCount=$attachments.Count; attachmentMetadata=$attachments; protected=$protected
+    bodyHash=(Get-StringHash $body); bodyLength=[Text.Encoding]::UTF8.GetByteCount($body); bodyStatus=$bodyStatus; unread=if($unreadStatus -eq 'readable'){[bool]$unreadValue}else{$null}; unreadStatus=$unreadStatus; flagStatus=$flagStatus; flagged=if($flagStatus){($flagStatus -ne '0')}else{$null}
+    categories=[string]$categoriesValue; categoriesStatus=$categoriesStatus; attachmentCount=$attachments.Count; attachmentMetadata=$attachments; attachmentStatus=$attachmentStatus; protected=$protected
+    evidenceComplete=($classification.Class -ne 'Review' -and $bodyStatus -eq 'complete' -and -not $protected -and $requiredStateReadable); actionEligible=($classification.Class -ne 'Review' -and $bodyStatus -eq 'complete' -and -not $protected -and -not [string]::IsNullOrWhiteSpace($entry) -and $received -and $modified -and $requiredStateReadable)
     class=$classification.Class; confidence=$classification.Confidence; reason=$classification.Reason; sensitive=$classification.Sensitive
     action=if($classification.Class -eq 'Delete candidate'){'delete_to_deleted_items'}elseif($classification.Class -eq 'Review'){'review'}else{'move'}; destination=$classification.Class
   }
@@ -160,28 +177,37 @@ function Get-OutlookInventory([string]$MailboxAddress) {
       $folder=$pair[0]; $label=$pair[1]; $items=$folder.Items
       try {
         $initialCount=[int]$items.Count
+        $initialLocators=[Collections.Generic.List[string]]::new()
+        for($snapshotIndex=1;$snapshotIndex -le $initialCount;$snapshotIndex++){$snapshotItem=$null;try{$snapshotItem=$items.Item($snapshotIndex);$initialLocators.Add([string](Get-Field $snapshotItem 'EntryID' ''))}catch{$initialLocators.Add('')}finally{if($snapshotItem -and [Runtime.InteropServices.Marshal]::IsComObject($snapshotItem)){[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($snapshotItem)}}}
+        $locatorSeen=@{}
+        foreach($locator in $initialLocators){if([string]::IsNullOrWhiteSpace($locator) -or $locatorSeen.ContainsKey($locator)){$enumerationComplete=$false};$locatorSeen[$locator]=$true}
         for ($i=1; $i -le $initialCount; $i++) {
           if(($i % 500) -eq 0){Write-Progress -Activity 'Private mailbox inventory' -Status ("Inspected {0} of {1} items in this folder" -f $i,$initialCount) -PercentComplete ([int](100*$i/[Math]::Max(1,$initialCount)))}
           $item=$null
           try {
             $item=$items.Item($i)
+            if([string](Get-Field $item 'EntryID' '') -cne [string]$initialLocators[$i-1]){$enumerationComplete=$false}
             $record=Get-ItemRecord $item ([string]$store.StoreID) ([string]$folder.EntryID) $label
             $records.Add($record)
-            if([string]$record.bodyStatus -ne 'complete' -or [bool](Get-Field $record 'protected' $false)){$evidenceComplete=$false};if([string]::IsNullOrWhiteSpace([string]$record.entryId)){$enumerationComplete=$false;$evidenceComplete=$false}
+            if([string]$record.bodyStatus -ne 'complete' -or [bool](Get-Field $record 'protected' $false) -or $record.class -eq 'Review'){$evidenceComplete=$false};if([string]::IsNullOrWhiteSpace([string]$record.entryId)){$enumerationComplete=$false;$evidenceComplete=$false}
           } catch {
             $enumerationComplete=$false;$evidenceComplete=$false
-            $records.Add([ordered]@{rowId=(Get-StringHash ($store.StoreID+$folder.EntryID+$i));storeId=[string]$store.StoreID;folderId=[string]$folder.EntryID;folder=$label;entryId='';bodyStatus='unavailable';class='Review';confidence='low';reason='item_inaccessible';action='review';destination='Review';sensitive=$false;inaccessible=$true})
+            $records.Add([ordered]@{rowId=(Get-StringHash ($store.StoreID+$folder.EntryID+$i));storeId=[string]$store.StoreID;folderId=[string]$folder.EntryID;folder=$label;entryId='';receivedAt=$null;modifiedAt=$null;fingerprint='';bodyHash='';bodyStatus='unavailable';unread=$false;unreadStatus='unknown';flagStatus='';flagged=$false;categories='';attachmentCount=0;attachmentStatus='unknown';attachmentMetadata=@();protected=$true;class='Review';confidence='low';reason='item_inaccessible';action='review';destination='Review';sensitive=$false;inaccessible=$true;evidenceComplete=$false;actionEligible=$false})
           } finally {
             if ($item -and [Runtime.InteropServices.Marshal]::IsComObject($item)) { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($item) }
           }
         }
-        if ([int]$items.Count -ne $initialCount) { $enumerationComplete=$false;$evidenceComplete=$false }
+        $finalLocators=[Collections.Generic.List[string]]::new();for($snapshotIndex=1;$snapshotIndex -le [int]$items.Count;$snapshotIndex++){$snapshotItem=$null;try{$snapshotItem=$items.Item($snapshotIndex);$finalLocators.Add([string](Get-Field $snapshotItem 'EntryID' ''))}catch{$finalLocators.Add('')}finally{if($snapshotItem -and [Runtime.InteropServices.Marshal]::IsComObject($snapshotItem)){[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($snapshotItem)}}}
+        if ([int]$items.Count -ne $initialCount -or (ConvertTo-Json -InputObject $initialLocators.ToArray() -Compress) -cne (ConvertTo-Json -InputObject $finalLocators.ToArray() -Compress)) { $enumerationComplete=$false;$evidenceComplete=$false }
       } finally {
         Write-Progress -Activity 'Private mailbox inventory' -Completed
         if ($items -and [Runtime.InteropServices.Marshal]::IsComObject($items)) { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($items) }
       }
     }
-    return @{storeId=[string]$store.StoreID;inboxId=[string]$inbox.EntryID;junkId=[string]$junk.EntryID;items=$records.ToArray();complete=$enumerationComplete;evidenceComplete=$evidenceComplete}
+    $jobConversations=@{};foreach($record in $records){$conversation=[string](Get-Field $record 'conversationId' '');if($conversation -and $record.class -notin 'Delete candidate','Job alerts','Review'){$jobConversations[$conversation]=$true}}
+    foreach($record in $records){$conversation=[string](Get-Field $record 'conversationId' '');if($record.action -eq 'delete_to_deleted_items' -and $conversation -and $jobConversations.ContainsKey($conversation)){$record.class='Review';$record.confidence='low';$record.reason='verified_job_conversation_context';$record.action='review';$record.destination='Review';$record.actionEligible=$false;$record.evidenceComplete=$false}}
+    if(@($records|Where-Object{ -not [bool](Get-Field $_ 'evidenceComplete' $false) -or $_.action -eq 'review'}).Count -gt 0){$evidenceComplete=$false}
+    return @{storeId=[string]$store.StoreID;inboxId=[string]$inbox.EntryID;junkId=[string]$junk.EntryID;items=$records.ToArray();complete=$enumerationComplete;evidenceComplete=$evidenceComplete;evidenceCompleteCount=@($records|Where-Object{[bool](Get-Field $_ 'evidenceComplete' $false)}).Count;reviewCount=@($records|Where-Object{$_.action -eq 'review'}).Count}
   } finally {
     if ($matches) { foreach ($candidate in $matches) { if ($candidate -and -not [object]::ReferenceEquals($candidate,$account) -and [Runtime.InteropServices.Marshal]::IsComObject($candidate)) { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($candidate) } } }
     foreach ($o in @($junk,$inbox,$store,$account,$accounts,$ns,$ol)) { if ($o -and [Runtime.InteropServices.Marshal]::IsComObject($o)) { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($o) } }
@@ -316,7 +342,7 @@ function New-InventoryManifest($Inventory,[string]$MailboxAddress) {
   $items=@($Inventory.items); $sensitive=@($items|Where-Object{$_.action -eq 'delete_to_deleted_items' -and (Get-Field $_ 'sensitive' $false)})
   $floor=[datetime]::Parse('2026-09-30T07:00:00Z',[Globalization.CultureInfo]::InvariantCulture,[Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()
   $preFloor=@($items|Where-Object{if($_.action -ne 'delete_to_deleted_items' -or -not $_.receivedAt){return $false};try{$date=ConvertTo-CleanupUtcDate $_.receivedAt;return $date -lt $floor}catch{return $false}}).Count
-  $manifest=[ordered]@{ schema='outlook-cleanup-manifest.v1'; schemaVersion=1; utilityVersion='1.0.0'; ruleVersion='cleanup-rules-2026-10-11.1'; createdAt=[datetime]::UtcNow.ToString('o'); mailboxBinding=(Get-StringHash $MailboxAddress.ToLowerInvariant()); storeId=$Inventory.storeId; sources=@(@{folderId=$Inventory.inboxId;folder='Inbox';defaultFolderId=6},@{folderId=$Inventory.junkId;folder='Junk';defaultFolderId=23}); complete=[bool]$Inventory.complete;evidenceComplete=[bool](Get-Field $Inventory 'evidenceComplete' $Inventory.complete); itemCount=$items.Count; summary=@{ byClass=@{}; unreadDeleteCount=@(@($items|Where-Object{$_.action -eq 'delete_to_deleted_items' -and (Get-Field $_ 'unread' $false)})).Count; flaggedDeleteCount=@(@($items|Where-Object{$_.action -eq 'delete_to_deleted_items' -and (Get-Field $_ 'flagged' $false)})).Count; sensitiveDeleteCount=$sensitive.Count; attachmentDeleteCount=@(@($items|Where-Object{$_.action -eq 'delete_to_deleted_items' -and [int](Get-Field $_ 'attachmentCount' 0) -gt 0})).Count; preFloorDeleteCount=$preFloor }; items=$items }
+  $manifest=[ordered]@{ schema='outlook-cleanup-manifest.v2'; schemaVersion=2; utilityVersion='1.0.0'; ruleVersion='cleanup-rules-2026-10-11.2'; createdAt=[datetime]::UtcNow.ToString('o'); mailboxBinding=(Get-StringHash $MailboxAddress.ToLowerInvariant()); storeId=$Inventory.storeId; sources=@(@{folderId=$Inventory.inboxId;folder='Inbox';defaultFolderId=6},@{folderId=$Inventory.junkId;folder='Junk';defaultFolderId=23}); complete=[bool]$Inventory.complete;evidenceComplete=[bool](Get-Field $Inventory 'evidenceComplete' $false); itemCount=$items.Count; summary=@{ byClass=@{}; eligibleActionCount=@(@($items|Where-Object{$_.action -in 'move','delete_to_deleted_items' -and (Get-Field $_ 'actionEligible' $false) -and (Get-Field $_ 'evidenceComplete' $false)})).Count; reviewCount=@($items|Where-Object{$_.action -eq 'review'}).Count; unresolvedReviewCount=@($items|Where-Object{$_.action -eq 'review' -or -not (Get-Field $_ 'actionEligible' $false)}).Count; unreadDeleteCount=@(@($items|Where-Object{$_.action -eq 'delete_to_deleted_items' -and (Get-Field $_ 'unread' $false)})).Count; flaggedDeleteCount=@(@($items|Where-Object{$_.action -eq 'delete_to_deleted_items' -and (Get-Field $_ 'flagged' $false)})).Count; sensitiveDeleteCount=$sensitive.Count; attachmentDeleteCount=@(@($items|Where-Object{$_.action -eq 'delete_to_deleted_items' -and [int](Get-Field $_ 'attachmentCount' 0) -gt 0})).Count; preFloorDeleteCount=$preFloor }; items=$items }
   foreach($row in $items){$groupName=[string](Get-Field $row 'class' 'Unclassified');if([string]::IsNullOrWhiteSpace($groupName)){$groupName='Unclassified'};if(-not $manifest.summary.byClass.Contains($groupName)){$manifest.summary.byClass[$groupName]=0};$manifest.summary.byClass[$groupName]++}
   $manifest.manifestHash=Get-ManifestHash $manifest; return $manifest
 }
@@ -355,7 +381,7 @@ function Invoke-Inventory {
   $path=if($ManifestPath){$ManifestPath}else{Join-Path $runRoot 'inventory.manifest.dpapi'}
   if(-not ([IO.Path]::GetFullPath($path).StartsWith([IO.Path]::GetFullPath($runRoot)+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase))){throw 'Inventory manifest must be stored in its private cleanup run directory.'}
   Save-ProtectedJsonAtomic -Path $path -Value $manifest -Context $context
-  Write-Output ([pscustomobject]@{ManifestPath=$path;ManifestHash=$manifest.manifestHash;PhysicalItemCount=$manifest.itemCount;EnumerationComplete=$manifest.complete;EvidenceComplete=$manifest.evidenceComplete;DeleteCandidates=@($manifest.items|Where-Object{$_.action -eq 'delete_to_deleted_items'}).Count;ReviewCount=@($manifest.items|Where-Object{$_.action -eq 'review'}).Count;SensitiveDeleteCount=$manifest.summary.sensitiveDeleteCount})
+  Write-Output ([pscustomobject]@{ManifestPath=$path;ManifestHash=$manifest.manifestHash;PhysicalItemCount=$manifest.itemCount;EnumerationComplete=$manifest.complete;EvidenceComplete=$manifest.evidenceComplete;EligibleActionCount=$manifest.summary.eligibleActionCount;UnresolvedReviewCount=$manifest.summary.unresolvedReviewCount;DeleteCandidates=@($manifest.items|Where-Object{$_.action -eq 'delete_to_deleted_items'}).Count;ReviewCount=@($manifest.items|Where-Object{$_.action -eq 'review'}).Count;SensitiveDeleteCount=$manifest.summary.sensitiveDeleteCount})
 }
 function Invoke-Review {
   if(-not $ManifestPath -or -not $ReviewOutputPath){throw 'Review requires an encrypted manifest and explicit private review output path.'}
@@ -483,12 +509,14 @@ function Assert-EncryptedBackup($State,$Context){
   if((Get-BytesHash $bytes) -cne [string](Get-Field $State 'backupHash' '')){throw 'Encrypted backup hash check failed.'}
 }
 function Test-ApprovedSnapshot($Current,$Approved){
-  foreach($name in 'storeId','folderId','entryId','internetMessageId','conversationId','subject','sender','receivedAt','modifiedAt','fingerprint','bodyHash','bodyLength','unread','flagged','categories','attachmentCount'){
+  foreach($name in 'storeId','folderId','entryId','internetMessageId','conversationId','subject','sender','receivedAt','modifiedAt','fingerprint','bodyHash','bodyLength','unread','flagStatus','categories','attachmentCount','bodyStatus','unreadStatus','attachmentStatus','categoriesStatus'){
+    if($name -in 'flagStatus','bodyStatus','unreadStatus','attachmentStatus','categoriesStatus' -and ([string]::IsNullOrWhiteSpace([string](Get-Field $Current $name '')) -or [string]::IsNullOrWhiteSpace([string](Get-Field $Approved $name '')))){throw "Required approved item state is unreadable: $name"}
     if([string](Get-Field $Current $name '') -cne [string](Get-Field $Approved $name '')){throw "Approved item state changed: $name"}
   }
 }
 function Test-RecoverySnapshot($Current,$Approved){
-  foreach($name in 'storeId','internetMessageId','conversationId','subject','sender','receivedAt','fingerprint','bodyHash','unread','flagged','categories','attachmentCount'){
+  foreach($name in 'storeId','internetMessageId','conversationId','subject','sender','receivedAt','fingerprint','bodyHash','unread','flagStatus','categories','attachmentCount','bodyStatus','unreadStatus','attachmentStatus','categoriesStatus'){
+    if($name -in 'flagStatus','bodyStatus','unreadStatus','attachmentStatus','categoriesStatus' -and ([string]::IsNullOrWhiteSpace([string](Get-Field $Current $name '')) -or [string]::IsNullOrWhiteSpace([string](Get-Field $Approved $name '')))){throw "Required recovery item state is unreadable: $name"}
     if([string](Get-Field $Current $name '') -cne [string](Get-Field $Approved $name '')){throw "Recovery destination item differs from approval: $name"}
   }
 }
@@ -510,13 +538,14 @@ function Restore-BackupReceivedTime($RestoredCopy,$Fidelity,$Namespace) {
   $sentProof=Get-Field $Fidelity 'wasSent' $null
   if($null -eq $sentProof){throw 'Verified backup sent/draft state is missing; refusing to invent restored state.'}
   $wasSent=[bool]$sentProof
-  if(([datetime]$RestoredCopy.ReceivedTime).ToUniversalTime().Ticks -eq $expected.Ticks -and (Get-ItemWasSent $RestoredCopy) -eq $wasSent){return $RestoredCopy}
+  # MSGFLAG_UNSENT becomes read-only after the destination's first SaveChanges.
+  # Move has already saved this copy. Import must preserve that state itself;
+  # never attempt to manufacture it while repairing the delivery timestamp.
+  if((Get-ItemWasSent $RestoredCopy) -ne $wasSent){throw 'Imported backup sent/draft state differs from its verified source; the saved copy cannot safely repair that read-only state.'}
+  if(([datetime]$RestoredCopy.ReceivedTime).ToUniversalTime().Ticks -eq $expected.Ticks){return $RestoredCopy}
   $accessor=$null
   try{
     $accessor=$RestoredCopy.PropertyAccessor
-    $flags=[int]$accessor.GetProperty('http://schemas.microsoft.com/mapi/proptag/0x0E070003')
-    $flags=if($wasSent){$flags -band (-bnot 8)}else{$flags -bor 8}
-    $accessor.SetProperty('http://schemas.microsoft.com/mapi/proptag/0x0E070003',$flags)
     $accessor.SetProperty('http://schemas.microsoft.com/mapi/proptag/0x0E060040',$expected)
     $RestoredCopy.Save()
   }
@@ -554,7 +583,7 @@ function Invoke-Execute {
   $script:StateRoot=Assert-PrivateRoot $StateRoot;Import-Module (Join-Path $PSScriptRoot 'outlook-private-runtime.psm1') -Force
   $binding=Get-StringHash $Mailbox.ToLowerInvariant();$context=New-CleanupRuntimeContext $StateRoot 'outlook-cleanup' $binding 'cleanup-v1'
   $manifest=Read-ProtectedJson -Path $ManifestPath -Context $context -QuarantineInvalid
-  if((Get-ManifestHash $manifest) -ne [string]$manifest.manifestHash -or [string]$manifest.manifestHash -cne $ApprovalHash -or -not [bool]$manifest.complete -or -not [bool](Get-Field $manifest 'evidenceComplete' $false)){throw 'Manifest integrity, completeness, complete item evidence, or exact owner approval check failed.'};Assert-ManifestActionScope $manifest
+  if((Get-ManifestHash $manifest) -ne [string]$manifest.manifestHash -or [string]$manifest.manifestHash -cne $ApprovalHash -or -not [bool]$manifest.complete){throw 'Manifest integrity, complete physical enumeration, or exact owner approval check failed.'};Assert-ManifestActionScope $manifest
   $idle=Read-ProtectedJson -Path $BackendIdleProofPath -Context $context -QuarantineInvalid;$synthetic=Read-ProtectedJson -Path $SyntheticAcceptanceProofPath -Context $context -QuarantineInvalid;$rollout=Read-ProtectedJson -Path $RolloutAcceptanceProofPath -Context $context -QuarantineInvalid
   if(-not $idle -or [string]$idle.manifestHash -cne $ApprovalHash -or [string]::IsNullOrWhiteSpace([string](Get-Field $idle 'dataGeneration' '')) -or [int]$idle.pendingMessages -ne 0 -or [int]$idle.pendingTrackerRows -ne 0 -or [int]$idle.runningSyncs -ne 0 -or [int]$idle.activeLeases -ne 0 -or -not [bool]$idle.workflowsTerminal -or -not [bool]$idle.taskDisabled){throw 'Backend/task idle proof is absent, stale in content, or reports active work.'}
   $proofAt=ConvertTo-CleanupUtcDate $idle.verifiedAt;if(([datetime]::UtcNow-$proofAt).TotalMinutes -gt 5 -or $proofAt -gt [datetime]::UtcNow.AddMinutes(1)){throw 'Backend idle proof is older than five minutes or from the future.'}
@@ -590,7 +619,7 @@ function Invoke-Recover {
   if(-not $ManifestPath -or -not $ApprovalHash -or -not $BackendIdleProofPath){throw 'Recover requires the exact cleanup manifest hash and fresh backend/task idle proof.'}
   $script:StateRoot=Assert-PrivateRoot $StateRoot;Import-Module (Join-Path $PSScriptRoot 'outlook-private-runtime.psm1') -Force
   $binding=Get-StringHash $Mailbox.ToLowerInvariant();$context=New-CleanupRuntimeContext $StateRoot 'outlook-cleanup' $binding 'cleanup-v1';$manifest=Read-ProtectedJson -Path $ManifestPath -Context $context -QuarantineInvalid
-  if((Get-ManifestHash $manifest) -ne [string]$manifest.manifestHash -or [string]$manifest.manifestHash -cne $ApprovalHash -or -not [bool]$manifest.complete -or -not [bool](Get-Field $manifest 'evidenceComplete' $false)){throw 'Recovery manifest integrity, complete item evidence, or exact approval check failed.'};Assert-ManifestActionScope $manifest
+  if((Get-ManifestHash $manifest) -ne [string]$manifest.manifestHash -or [string]$manifest.manifestHash -cne $ApprovalHash -or -not [bool]$manifest.complete){throw 'Recovery manifest integrity, complete physical enumeration, or exact approval check failed.'};Assert-ManifestActionScope $manifest
   $idle=Read-ProtectedJson -Path $BackendIdleProofPath -Context $context -QuarantineInvalid;if([string]$idle.manifestHash -cne $ApprovalHash -or [int]$idle.pendingMessages -ne 0 -or [int]$idle.pendingTrackerRows -ne 0 -or [int]$idle.runningSyncs -ne 0 -or [int]$idle.activeLeases -ne 0 -or -not [bool]$idle.workflowsTerminal -or -not [bool]$idle.taskDisabled){throw 'Recovery requires a fresh zero-backlog proof with the uploader task disabled.'}
   $proofAt=ConvertTo-CleanupUtcDate $idle.verifiedAt;if(([datetime]::UtcNow-$proofAt).TotalMinutes -gt 5 -or $proofAt -gt [datetime]::UtcNow.AddMinutes(1)){throw 'Recovery backend idle proof is older than five minutes or from the future.'}
   $task=Get-ScheduledTask -TaskName 'JobSearchIntelligence-OutlookUpload' -ErrorAction Stop;if([string]$task.State -ne 'Disabled'){throw 'Scheduled Outlook uploader must remain disabled during recovery.'}

@@ -45,7 +45,7 @@ $gateContext=New-MaintenanceGateContext $context
 $manifestPath=Join-Path $stateRoot 'registration-maintenance.dpapi'
 $installedPath=Join-Path $stateRoot 'registration-installed.dpapi'
 $bin=Join-Path $stateRoot 'bin'
-$names=@('outlook-automation.ps1','outlook-com-export.ps1','outlook-private-runtime.psm1')
+$names=@('outlook-automation.ps1','outlook-com-export.ps1','outlook-private-runtime.psm1','outlook-mailbox-cleanup.ps1')
 
 function Get-FileDigest([string]$Path) {
   $sha=[Security.Cryptography.SHA256]::Create();try{return ([BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($Path)))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}

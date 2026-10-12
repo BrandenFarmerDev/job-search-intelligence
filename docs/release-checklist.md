@@ -39,6 +39,8 @@ Implementation is in PR #1. Version one uses local Outlook import and the verifi
 
 ## Publication and operation
 
+The owner authorized the guarded Outlook release and subsequent safe live cleanup on October 11. Record this release's actual results separately from the historical version-one checks below. Required acceptance includes supported restore fidelity, current eligible-action inventory, complete generation-bound capture, exact private action review, verified backups, post-action reconciliation and restoration of the prior scheduled-task state. Merge and deployment authorization is now present; failed or missing provider checks still block mailbox actions.
+
 - [x] Owner authorized GitHub source publication and a brief reviewed PR. Do not add Codex/Copilot coauthors.
 - [x] Owner authorized merge/deployment; ENABLE_DEPLOYMENTS=true saved after GitHub verification.
 - [x] [Production workflow](https://github.com/BrandenFarmerDev/job-search-intelligence/actions/runs/37138746361) succeeded; authenticated About/Overview passed and 16 applications remained intact. SYNC_ENABLED remains false.

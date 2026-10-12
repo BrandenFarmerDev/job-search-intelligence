@@ -59,7 +59,7 @@ function New-Fixture([string]$Root,[string]$PriorTaskState='Disabled'){
   $context=New-PrivateRuntimeContext -StateRoot $Root -Environment 'outlook-registration' -MailboxBinding $binding -ConfigVersion registration-v1
   if(-not $context.ProtectBytes -or -not $context.UnprotectBytes){throw 'Registration fixture context is missing injected synthetic protection callbacks.'}
   $gate=New-MaintenanceGateContext $context;$bin=Join-Path $Root 'bin';Protect-PrivateDirectory $bin
-  $names=@('outlook-automation.ps1','outlook-com-export.ps1','outlook-private-runtime.psm1');$hashes=[ordered]@{}
+  $names=@('outlook-automation.ps1','outlook-com-export.ps1','outlook-private-runtime.psm1','outlook-mailbox-cleanup.ps1');$hashes=[ordered]@{}
   foreach($name in $names){$path=Join-Path $bin $name;[IO.File]::WriteAllText($path,"current-$name");$hashes[$name]=Get-Digest $path}
   Save-ProtectedJsonAtomic -Path (Join-Path $Root 'registration-installed.dpapi') -Value ([ordered]@{schemaVersion=1;mailbox=$mailbox;installedAt=[DateTime]::UtcNow.ToString('o');fileHashes=$hashes}) -Context $context
   $record=[ordered]@{schemaVersion=1;approvalHash='approved-fixture-hash';taskName=$taskName;mailbox=$mailbox;previousTaskState=$PriorTaskState;previousTaskXml='<Task>fixture prior definition</Task>';previousFiles=[ordered]@{};backupRoot=(Join-Path $Root 'registration-backups');capturedAt=[DateTime]::UtcNow.ToString('o')}

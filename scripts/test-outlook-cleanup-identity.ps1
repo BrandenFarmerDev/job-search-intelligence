@@ -10,7 +10,8 @@ function New-IdentityFolder([string]$Id,[string]$Name,[string]$Store,[object[]]$
 $storeId='synthetic-identity-store';$source=New-IdentityFolder 'identity-inbox' 'Inbox' $storeId; $junk=New-IdentityFolder 'identity-junk' 'Junk E-mail' $storeId
 $root=New-IdentityFolder 'identity-root' 'Job Search' $storeId;$root.Parent=$source
 $destination=New-IdentityFolder 'identity-destination' 'Offers' $storeId;$destination.Parent=$root
-$item=[pscustomobject]@{Class=43;EntryID='identity-entry';Subject='Offer letter for Product Engineer';Body='We are pleased to offer you employment as a Product Engineer. Please review the compensation package.';SenderEmailAddress='recruiter@example.invalid';InternetMessageID='<identity-fixture@example.invalid>';ConversationID='identity-thread';ReceivedTime=[datetime]'2026-10-01T12:00:00Z';LastModificationTime=[datetime]'2026-10-01T12:05:00Z';UnRead=$true;FlagStatus=2;Categories='Synthetic';Attachments=[pscustomobject]@{Count=0};Parent=$source}
+$item=[pscustomobject]@{Class=43;EntryID='identity-entry';Subject='Offer letter for Product Engineer';Body='We are pleased to offer you employment as a Product Engineer. Please review the compensation package.';SenderEmailAddress='recruiter@example.invalid';ConversationID='identity-thread';ReceivedTime=[datetime]'2026-10-01T12:00:00Z';LastModificationTime=[datetime]'2026-10-01T12:05:00Z';UnRead=$true;FlagStatus=2;Categories='Synthetic';Attachments=[pscustomobject]@{Count=0};Parent=$source}
+$identityAccessor=[pscustomobject]@{};$identityAccessor|Add-Member ScriptMethod GetProperty {param($Uri) if($Uri -like '*0x1035001F'){return '<identity-fixture@example.invalid>'};if($Uri -like '*0x300B0102'){return ,[byte[]](9,8,7)};throw 'MAPI property unavailable'};$item|Add-Member NoteProperty PropertyAccessor $identityAccessor
 $source.Items=New-IdentityItems @($item)
 $script:IdentityFolders=@{'identity-inbox'=$source;'identity-junk'=$junk;'identity-root'=$root;'identity-destination'=$destination};$script:IdentityItem=$item;$script:FailGetItemById=$false
 $namespace=[pscustomobject]@{};$namespace|Add-Member ScriptMethod GetFolderFromID {param($EntryID,$StoreID)if($StoreID -cne $script:IdentityStoreId){throw 'store mismatch'};if(-not $script:IdentityFolders.ContainsKey($EntryID)){throw 'folder missing'};return $script:IdentityFolders[$EntryID]};$namespace|Add-Member ScriptMethod GetItemFromID {param($EntryID,$StoreID)if($script:FailGetItemById){throw 'injected stale EntryID'};if($EntryID -eq $script:IdentityItem.EntryID){return $script:IdentityItem};throw 'item missing'}
@@ -19,14 +20,14 @@ try {
   # These are the exact physical capture rules used by rollout receipts. Alerts,
   # non-job deletes, pre-floor rows, and malformed dates must not inflate proof.
   $captureRows=@(
-    [pscustomobject]@{rowId='a';action='move';class='Offers';receivedAt='2026-09-30T00:00:00.000001-07:00'},
+    [pscustomobject]@{rowId='a';action='move';class='Offers';actionEligible=$true;evidenceComplete=$true;receivedAt='2026-09-30T00:00:00.000001-07:00'},
     [pscustomobject]@{rowId='b';action='move';class='Job alerts';receivedAt='2026-10-01T12:00:00Z'},
     [pscustomobject]@{rowId='c';action='delete_to_deleted_items';class='Delete candidate';receivedAt='2026-10-01T12:00:00Z'},
-    [pscustomobject]@{rowId='d';action='move';class='Interviews';receivedAt='2026-09-30T06:59:59.9999999Z'},
-    [pscustomobject]@{rowId='e';action='move';class='Assessments';receivedAt='not-a-date'},
-    [pscustomobject]@{rowId='f';action='move';class='Rejections';receivedAt='2026-09-30T07:00:00.0000001Z'},
-    [pscustomobject]@{rowId='g';action='move';class='Application receipts';receivedAt='2026-09-30T07:00:00Z'},
-    [pscustomobject]@{rowId='h';action='move';class='Recruiter follow-ups';receivedAt='2026-10-01T12:00:00Z'}
+    [pscustomobject]@{rowId='d';action='move';class='Interviews';actionEligible=$true;evidenceComplete=$true;receivedAt='2026-09-30T06:59:59.9999999Z'},
+    [pscustomobject]@{rowId='e';action='move';class='Assessments';actionEligible=$true;evidenceComplete=$true;receivedAt='not-a-date'},
+    [pscustomobject]@{rowId='f';action='move';class='Rejections';actionEligible=$true;evidenceComplete=$true;receivedAt='2026-09-30T07:00:00.0000001Z'},
+    [pscustomobject]@{rowId='g';action='move';class='Application receipts';actionEligible=$true;evidenceComplete=$true;receivedAt='2026-09-30T07:00:00Z'},
+    [pscustomobject]@{rowId='h';action='move';class='Recruiter follow-ups';actionEligible=$true;evidenceComplete=$true;receivedAt='2026-10-01T12:00:00Z'}
   )
   $required=Get-RequiredCaptureRows ([pscustomobject]@{items=$captureRows})
   Assert-IdentityTest (($required.rowId -join ',') -eq 'a,f,g,h') 'capture proof uses exact in-floor job-evidence classes, UTC date normalization, and fractional floor boundaries'
@@ -52,7 +53,12 @@ try {
     (Get-Classification 'Offer letter' 'We are pleased to offer you employment.' 'recruiter@example.invalid' $false $true)
   )
   Assert-IdentityTest ($classifications[0].Class -eq 'Offers' -and $classifications[1].Class -eq 'Review' -and $classifications[2].Class -eq 'Job alerts' -and $classifications[3].Class -eq 'Recruiter follow-ups' -and $classifications[4].Reason -eq 'suspicious_content' -and $classifications[5].Sensitive -and $classifications[6].Class -eq 'Review' -and $classifications[7].Class -eq 'Review') 'classifier applies purpose conflicts, phishing, sensitive content, generic alerts, and evidence gaps conservatively'
+  $falseDelete=Get-Classification 'Next steps at Acme' 'We enjoyed speaking with you about the role. Please send your availability for tomorrow.' 'hr@example.invalid'
+  Assert-IdentityTest ($falseDelete.Class -eq 'Review' -and $falseDelete.Reason -eq 'recruiting_conversation_needs_review') 'recruiting follow-up availability cannot be classified as a delete candidate from a sender or broad keyword alone'
+  Assert-IdentityTest ((Get-Classification 'Technical test' 'Please review the attached information and reply when ready.' 'jobs@example.invalid').Class -eq 'Assessments' -and (Get-Classification 'Compensation package' 'Please review the attached information and reply when ready.' 'jobs@example.invalid').Class -eq 'Offers') 'definite assessment and offer purpose phrases are recognized from subject'
+  Assert-IdentityTest ((Get-Classification 'Thank you for your interest' 'After reviewing all submissions, we have decided to move forward with other applicants.' 'jobs@example.invalid').Class -eq 'Rejections') 'explicit other-applicant decision remains job evidence and cannot become a delete candidate'
   $snapshot=Get-ItemRecord $item $storeId $source.EntryID $source.Name
+  Assert-IdentityTest ($snapshot.internetMessageId -eq '<identity-fixture@example.invalid>' -and $snapshot.searchKey -eq [Convert]::ToBase64String([byte[]](9,8,7))) 'physical identity reads Internet Message-ID and search key through MAPI properties'
   $row=[pscustomobject]@{};foreach($key in $snapshot.Keys){$row|Add-Member NoteProperty $key $snapshot[$key]}
   $found=Get-SourceItem $session $row
   Assert-IdentityTest ([object]::ReferenceEquals($found,$item)) 'direct EntryID lookup verifies parent folder identity and returns the physical item'
@@ -62,6 +68,7 @@ try {
   Test-RecoverySnapshot $snapshot $row
   $badSnapshot=[ordered]@{};foreach($key in $snapshot.Keys){$badSnapshot[$key]=$snapshot[$key]};$badSnapshot.subject='Changed subject';$changedRejected=$false;try{Test-ApprovedSnapshot $badSnapshot $row}catch{$changedRejected=$true}
   Assert-IdentityTest $changedRejected 'fresh subject change blocks an approved move'
+  $badSnapshot=[ordered]@{};foreach($key in $snapshot.Keys){$badSnapshot[$key]=$snapshot[$key]};$badSnapshot.flagStatus='1';$flagChangeRejected=$false;try{Test-ApprovedSnapshot $badSnapshot $row}catch{$flagChangeRejected=$true};Assert-IdentityTest $flagChangeRejected 'exact Outlook FlagStatus change blocks an approved move'
   $badSnapshot=[ordered]@{};foreach($key in $snapshot.Keys){$badSnapshot[$key]=$snapshot[$key]};$badSnapshot.attachmentCount=1;$attachmentChangeRejected=$false;try{Test-RecoverySnapshot $badSnapshot $row}catch{$attachmentChangeRejected=$true}
   Assert-IdentityTest $attachmentChangeRejected 'recovery refuses changed attachment count'
   $script:FailGetItemById=$true;$fallback=Get-SourceItem $session $row
@@ -75,7 +82,7 @@ try {
   Assert-IdentityTest ([object]::ReferenceEquals($verifiedDestination,$destination)) 'destination must be the exact same-store approved direct taxonomy child'
   $wrongStore=New-IdentityFolder 'identity-wrong' 'Offers' 'other-store';$wrongStore.Parent=$root;$script:IdentityFolders['identity-wrong']=$wrongStore;$approvedFolders.folders=@([pscustomobject]@{name='Offers';entryId='identity-wrong'});$scopeRejected=$false;try{Get-ApprovedDestination $session $approvedFolders $row|Out-Null}catch{$scopeRejected=$true}
   Assert-IdentityTest $scopeRejected 'destination from a different store is rejected'
-  $validScope=[pscustomobject]@{storeId=$storeId;sources=@([pscustomobject]@{folderId=$source.EntryID;folder='Inbox';defaultFolderId=6},[pscustomobject]@{folderId=$junk.EntryID;folder='Junk';defaultFolderId=23});items=@()}
+  $validScope=[pscustomobject]@{schema='outlook-cleanup-manifest.v2';schemaVersion=2;utilityVersion='1.0.0';ruleVersion='cleanup-rules-2026-10-11.2';storeId=$storeId;sources=@([pscustomobject]@{folderId=$source.EntryID;folder='Inbox';defaultFolderId=6},[pscustomobject]@{folderId=$junk.EntryID;folder='Junk';defaultFolderId=23});items=@()}
   Assert-IdentityTest ((Assert-ManifestActionScope $validScope) -eq $null) 'manifest action scope accepts exactly the selected direct Inbox and Junk defaults'
   $scopeFailure=$false;$invalidScope=ConvertTo-MutableMap $validScope;$invalidScope.sources[1].defaultFolderId=3;try{Assert-ManifestActionScope $invalidScope}catch{$scopeFailure=$true};Assert-IdentityTest $scopeFailure 'manifest action scope rejects substituted default folders'
   $scopeFailure=$false;$invalidScope=ConvertTo-MutableMap $validScope;$invalidScope.items=@([pscustomobject]@{rowId='bad';storeId=$storeId;folderId=$source.EntryID;folder='Inbox';action='move';class='Offers';destination='Offers'});try{Assert-ManifestActionScope $invalidScope}catch{$scopeFailure=$true};Assert-IdentityTest $scopeFailure 'manifest action scope rejects nonopaque physical row keys'
@@ -84,7 +91,8 @@ try {
   $scopeFailure=$false;$invalidScope=ConvertTo-MutableMap $validScope;$invalidScope.items=@([pscustomobject]@{rowId=('c'*64);storeId=$storeId;folderId=$junk.EntryID;folder='Inbox';action='review';class='Review';destination='Review'});try{Assert-ManifestActionScope $invalidScope}catch{$scopeFailure=$true};Assert-IdentityTest $scopeFailure 'manifest action scope verifies each source folder label against its exact folder ID'
   $scopeFailure=$false;$invalidScope=ConvertTo-MutableMap $validScope;$invalidScope.items=@([pscustomobject]@{rowId=('d'*64);storeId=$storeId;folderId=$source.EntryID;folder='Inbox';action='move';class='Offers';destination='Interviews'});try{Assert-ManifestActionScope $invalidScope}catch{$scopeFailure=$true};Assert-IdentityTest $scopeFailure 'manifest action scope refuses alternate destinations for a job category'
   $scopeFailure=$false;$invalidScope=ConvertTo-MutableMap $validScope;$invalidScope.items=@([pscustomobject]@{rowId=('e'*64);storeId=$storeId;folderId=$source.EntryID;folder='Inbox';action='delete';class='Delete candidate';destination='Delete candidate'});try{Assert-ManifestActionScope $invalidScope}catch{$scopeFailure=$true};Assert-IdentityTest $scopeFailure 'manifest action scope refuses unsupported delete/purge verbs'
-  $validDelete=ConvertTo-MutableMap $validScope;$validDelete.items=@([pscustomobject]@{rowId=('f'*64);storeId=$storeId;folderId=$junk.EntryID;folder='Junk E-mail';action='delete_to_deleted_items';class='Delete candidate';destination='Delete candidate'});Assert-IdentityTest ((Assert-ManifestActionScope $validDelete) -eq $null) 'manifest permits only explicit non-job candidate Move to Deleted Items'
+  $validDelete=ConvertTo-MutableMap $validScope;$deleteRow=ConvertTo-MutableMap $snapshot;$deleteRow.rowId='f'*64;$deleteRow.folderId=$junk.EntryID;$deleteRow.folder='Junk E-mail';$deleteRow.action='delete_to_deleted_items';$deleteRow.class='Delete candidate';$deleteRow.destination='Delete candidate';$deleteRow.actionEligible=$true;$deleteRow.evidenceComplete=$true;$validDelete.items=@($deleteRow);Assert-IdentityTest ((Assert-ManifestActionScope $validDelete) -eq $null) 'manifest permits only explicit non-job candidate Move to Deleted Items'
+  $duplicatePhysical=ConvertTo-MutableMap $deleteRow;$duplicatePhysical.rowId='1'*64;$validDelete.items=@($deleteRow,$duplicatePhysical);$duplicateLocatorRejected=$false;try{Assert-ManifestActionScope $validDelete}catch{$duplicateLocatorRejected=$true};Assert-IdentityTest $duplicateLocatorRejected 'manifest rejects duplicate physical locators even when opaque row IDs differ'
   Assert-IdentityTest (Test-StringSequenceEqual @('one','two') @('one','two')) 'attachment digest sequence comparison accepts an exact match'
   Assert-IdentityTest (-not (Test-StringSequenceEqual @('one','two') @('two','one'))) 'attachment digest sequence comparison preserves order'
   $typedValues=[JobSearchIntelligence.CanonicalManifestJson]::Serialize([ordered]@{offset=[datetimeoffset]'2026-10-01T05:00:00-07:00';byte=[byte]8;decimal=[decimal]1.25;nested=@(@{value='a'})})

@@ -33,6 +33,8 @@ Folder names never establish application/date/status. Unrelated Job alerts remai
 
 Both processes use existing `Local\JobSearchIntelligenceOutlookUpload` mutex plus a durable maintenance gate checked by the uploader. Pause task/verify no holder before cleanup; acquire gate/lock and recheck. Controlled capture must run under the coordinator's ownership or after deliberate lock release, never launch a child waiting on a mutex cleanup holds. Prove backend idle through owner read-only D1 backlog/lease counts and terminal Workflow status when needed; Task result 0 is insufficient.
 
+The installed unit includes the uploader, collector, private runtime and cleanup helper. The collector uses the cleanup helper's pure purpose classification in an isolated cached module, so definite cleanup job purposes and export eligibility share one decision. Loading the helper as a library does not run mailbox cleanup. Include all four files in install hashes, prior-file snapshots and rollback verification; selected-Junk manifest hashing also requires that helper.
+
 ## Collection, content and identity
 
 Start with `Items.Restrict` date/modification candidates and per-item projection. Benchmark `GetTable` before adding it: body evaluation still needs items. Restrict cannot filter Body/HTMLBody; Table Body holds only 255 bytes. [Restrict](https://learn.microsoft.com/en-us/office/vba/api/outlook.items.restrict), [Table limitations](https://learn.microsoft.com/en-us/office/vba/outlook/how-to/search-and-filter/unsupported-properties-in-a-table-object-or-table-filter).

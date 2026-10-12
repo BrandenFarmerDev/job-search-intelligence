@@ -13,6 +13,7 @@ $ErrorActionPreference='Stop'
 $script:CollectorOutlookFactory=$null
 $script:CollectionFloor=[datetime]::Parse('2026-09-30T07:00:00Z').ToUniversalTime()
 $script:ApprovedNames=@('Application receipts','Recruiter follow-ups','Interviews','Assessments','Offers','Rejections','Job alerts','Review')
+$script:CleanupClassifierModule=$null
 function Release-OutlookObject($Value) {
   if($null -ne $Value -and [Runtime.InteropServices.Marshal]::IsComObject($Value)){[void][Runtime.InteropServices.Marshal]::ReleaseComObject($Value)}
 }
@@ -74,14 +75,20 @@ function Get-CollectionDirection($Message,[string]$Context,[string]$Owner) {
   if($sender -match '^[^@\s]+@[^@\s]+$' -and @((Get-CollectionField $Message 'recipients' @())|Where-Object{$_ -ieq $Owner}).Count -gt 0){return 'inbox'}
   return ''
 }
+function Get-CollectionPurposeClassification([string]$Subject,[string]$Body){
+  if(-not $script:CleanupClassifierModule){$cleanupLibrary=Join-Path $PSScriptRoot 'outlook-mailbox-cleanup.ps1';if(-not (Test-Path -LiteralPath $cleanupLibrary)){throw 'installed_cleanup_classifier_missing'};$script:CleanupClassifierModule=New-Module -Name 'JSIOutlookCleanupClassifier' -ArgumentList $cleanupLibrary -ScriptBlock {param($path);. $path -Library;Export-ModuleMember -Function @()}}
+  return (& $script:CleanupClassifierModule {param($s,$b) Get-Classification $s $b ''} $Subject $Body)
+}
 function Get-CollectionEvidence([string]$Subject,[string]$Body,[switch]$AllMail) {
   $primary=($Subject+"`n"+$Body) -replace '(?is)(\r?\n)\s*(from:|on .{1,100}wrote:|-----original message-----).*$', ''
-  $specific='(?i)(thank you for (applying|your application)|(?:we (?:have )?)received your application|application (?:status|was|has been|to|for)|your (?:candidacy|application)|recruit(?:er|ing)|interview|assessment|offer (?:letter|of employment)|background check|right to represent|not selected|moving forward with (?:your|the) application)'
+  $classification=Get-CollectionPurposeClassification $Subject $Body
+  $definiteEvidence=$classification.Class -in @('Application receipts','Recruiter follow-ups','Interviews','Assessments','Offers','Rejections')
+  $specific='(?i)(thank you for (applying|your application)|(?:we (?:have )?)received your application|application (?:status|was|has been|to|for)|your (?:candidacy|application)|recruit(?:er|ing)|interview|availability for a call|schedule a call|would (monday|tuesday|wednesday|thursday|friday) at [0-9]|convenient time for (a call|an interview)|assessment|technical test|coding exercise|take-home|offer (?:letter|of employment)|compensation package|background check|right to represent|not selected|moving forward with (?:your|the) application|decided to move forward with other applicants)'
   $alert='(?i)\b(job alerts?|jobs? for you|weekly jobs|new jobs|recommended jobs|vacancies matching|career newsletter)\b'
   $match=[regex]::Match($primary,$specific)
-  $genericAlert=($Subject -match $alert -and $primary -notmatch '(?i)(thank you for applying|received your application|schedule.{0,30}interview|offer of employment|your application.{0,40}(status|received))')
+  $genericAlert=($Subject -match $alert -and -not $definiteEvidence)
   if($genericAlert -and -not $AllMail){return @{Relevant=$false;Alert=$true;Excerpt=''}}
-  $relevant=$AllMail -or $match.Success -or $Subject -match '(?i)\b(application|applicant|candidate|recruiter|interview|assessment|requisition|resume|résumé|hiring|position|screening)\b'
+  $relevant=$AllMail -or $definiteEvidence -or $match.Success -or $Subject -match '(?i)\b(application|applicant|candidate|recruiter|interview|assessment|requisition|resume|résumé|hiring|position|screening)\b'
   if(-not $relevant){return @{Relevant=$false;Alert=$false;Excerpt=''}}
   $bodyMatch=[regex]::Match($Body,$specific)
   if($Body.Length -le 1500){$excerpt=$Body}
@@ -160,13 +167,13 @@ function New-OutlookCollectionProvider($Session,$Store,$Approved) {
 function New-SelectedJunkProvider($Session,$Store,$Manifest,[string]$ApprovedHash,[string]$Owner) {
   # Hash the same canonical private manifest as the cleanup coordinator, in an isolated scope.
   $actual=& {param($value) . (Join-Path $PSScriptRoot 'outlook-mailbox-cleanup.ps1') -Library;Get-ManifestHash $value} $Manifest
-  if(-not $ApprovedHash -or $actual -cne $ApprovedHash -or $actual -cne [string]$Manifest.manifestHash -or -not $Manifest.complete){throw 'junk_capture_manifest_integrity_or_approval_invalid'}
+  if(-not $ApprovedHash -or $actual -cne $ApprovedHash -or $actual -cne [string]$Manifest.manifestHash -or -not $Manifest.complete -or [int]$Manifest.schemaVersion -ne 2 -or [string]$Manifest.schema -cne 'outlook-cleanup-manifest.v2' -or [string]$Manifest.ruleVersion -cne 'cleanup-rules-2026-10-11.2'){throw 'junk_capture_manifest_integrity_or_approval_invalid'}
   if([string]$Manifest.storeId -ne [string]$Store.StoreID -or [string]$Manifest.mailboxBinding -ne (Get-CollectionHash $Owner.ToLowerInvariant())){throw 'junk_capture_mailbox_store_mismatch'}
   $junk=$null
   try{
     $junk=$Store.GetDefaultFolder(23);$junkId=[string]$junk.EntryID
     $source=@($Manifest.sources|Where-Object{$_.defaultFolderId -eq 23 -and $_.folderId -eq $junkId});if($source.Count -ne 1){throw 'junk_capture_source_mismatch'}
-    $selected=@($Manifest.items|Where-Object{$_.folderId -eq $junkId -and $_.action -eq 'move' -and $_.destination -in @('Application receipts','Recruiter follow-ups','Interviews','Assessments','Offers','Rejections')})
+    $selected=@($Manifest.items|Where-Object{$_.folderId -eq $junkId -and $_.action -eq 'move' -and (Get-CollectionField $_ 'actionEligible' $false) -and (Get-CollectionField $_ 'evidenceComplete' $false) -and (Get-CollectionField $_ 'bodyStatus' '') -eq 'complete' -and $_.destination -in @('Application receipts','Recruiter follow-ups','Interviews','Assessments','Offers','Rejections')})
     $rows=@{};foreach($row in $selected){if(-not $row.entryId -or $rows.ContainsKey([string]$row.entryId)){throw 'junk_capture_physical_locator_ambiguous'};$rows[[string]$row.entryId]=$row}
     $base=New-OutlookCollectionProvider $Session $Store $null
     $provider=[pscustomobject]@{StoreId=[string]$Store.StoreID;Folders=@(@{id=$junkId;kind='mixed'});Base=$base;Rows=$rows;ScopeSalt=$actual;Owner=$Owner}
