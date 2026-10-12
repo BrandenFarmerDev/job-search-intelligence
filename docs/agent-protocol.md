@@ -7,7 +7,7 @@ The owner updated this protocol on October 11, 2026. It applies to planning, imp
 - Planning and validating QA use GPT-6.1 Sol high or GPT-5.6 Sol high, with the same selected model for both roles in a task. GPT-6.1 Sol high is the default. QA reviews independently and reports concrete defects, reproduction evidence and unresolved acceptance limits.
 - Implementation uses a faster, cost-effective capable model, normally GPT-6 Luna medium, to follow the approved plan and acceptance criteria. Escalate a difficult diagnosis to high-reasoning QA instead of repeating speculative implementations.
 - Plans state the supported platforms/runtime versions, observable acceptance criteria, test matrix, privacy boundaries and release/owner-action gates. Preserve existing approved scope; do not restart planning for a routine correction.
-- Synthetic behavior, native platform checks, hosted CI and real provider acceptance are distinct evidence. Changing an environment variable on Windows does not reproduce Linux or another PowerShell version. Failed or unmeasured checks remain explicit.
+- Synthetic behavior, native platform checks, hosted CI and real provider acceptance are distinct evidence. Reproduce the failing launch command and scope: direct PowerShell `-File` can behave differently from `-Command` or a wrapper invoking `&`. Changing an environment variable on Windows does not reproduce Linux or another PowerShell version. Failed or unmeasured checks remain explicit.
 
 ## Bounded implementation and validation
 

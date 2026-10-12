@@ -44,4 +44,4 @@ Implementation is in PR #1. Version one uses local Outlook import and the verifi
 - [x] [Production workflow](https://github.com/BrandenFarmerDev/job-search-intelligence/actions/runs/37138746361) succeeded; authenticated About/Overview passed and 16 applications remained intact. SYNC_ENABLED remains false.
 - [x] Preview owner deployment approval required and administrator bypass disabled; exact reviewed commit checked before approval.
 - [ ] Future optional AI activation: verify free-only account behavior and hard quotas first; AI remains disabled with $0 paid limit.
-- [x] Separate cost-effective GPT-6 Luna QA review is complete on final behavior; concrete findings fixed and rechecked.
+- [x] Historical version-one GPT-6 Luna QA review completed, with concrete findings fixed and rechecked. Subsequent planning and validating QA follow the Sol high model requirements in [AGENTS.md](../AGENTS.md) and the [agent protocol](agent-protocol.md); this historical check is not acceptance of later changes.

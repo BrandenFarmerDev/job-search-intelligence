@@ -24,6 +24,16 @@ function New-PrivateRuntimeContext {
   $moduleArgs=@{StateRoot=$StateRoot;Environment=$Environment;MailboxBinding=$MailboxBinding;ConfigVersion=$ConfigVersion;ProtectBytes=$script:TestProtect;UnprotectBytes=$script:TestUnprotect}
   return outlook-private-runtime\New-PrivateRuntimeContext @moduleArgs
 }
+$script:FixtureContextConstructor=${function:New-PrivateRuntimeContext}.GetNewClosure()
+function Import-Module {
+  param([Parameter(Position=0)][string]$Name,[switch]$Force)
+  Microsoft.PowerShell.Core\Import-Module -Name $Name -Force:$Force
+  if([IO.Path]::GetFileName($Name) -eq 'outlook-private-runtime.psm1'){
+    # Importing the module re-exports its native constructor into this script
+    # scope. Restore the captured synthetic constructor for later fixtures.
+    Set-Item -Path Function:script:New-PrivateRuntimeContext -Value $script:FixtureContextConstructor
+  }
+}
 function Get-ScheduledTask { param([string]$TaskName,[object]$ErrorAction) return $script:FakeTask }
 function Enable-ScheduledTask { param([string]$TaskName) $script:FakeTask.State='Ready';return $script:FakeTask }
 function Disable-ScheduledTask { param([string]$TaskName) $script:FakeTask.State='Disabled';return $script:FakeTask }
@@ -47,6 +57,7 @@ function New-Fixture([string]$Root,[string]$PriorTaskState='Disabled'){
   $mailbox='owner@example.invalid';$taskName='JobSearchIntelligence-OutlookUpload'
   $sha=[Security.Cryptography.SHA256]::Create();try{$bindingBytes=$sha.ComputeHash([Text.Encoding]::UTF8.GetBytes(($mailbox+'|'+$taskName)));$binding=([BitConverter]::ToString($bindingBytes)).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}
   $context=New-PrivateRuntimeContext -StateRoot $Root -Environment 'outlook-registration' -MailboxBinding $binding -ConfigVersion registration-v1
+  if(-not $context.ProtectBytes -or -not $context.UnprotectBytes){throw 'Registration fixture context is missing injected synthetic protection callbacks.'}
   $gate=New-MaintenanceGateContext $context;$bin=Join-Path $Root 'bin';Protect-PrivateDirectory $bin
   $names=@('outlook-automation.ps1','outlook-com-export.ps1','outlook-private-runtime.psm1');$hashes=[ordered]@{}
   foreach($name in $names){$path=Join-Path $bin $name;[IO.File]::WriteAllText($path,"current-$name");$hashes[$name]=Get-Digest $path}
@@ -68,14 +79,15 @@ try {
   # A busy uploader/cleanup mutex prevents completion. The durable gate and
   # disabled task remain in place, so no overlapping phase is admitted.
   $busy=New-Fixture (Join-Path $testRoot 'busy')
-  $signal=Join-Path $testRoot 'mutex-held.signal'
-  $job=Start-Job -ArgumentList $signal,$script:TestMutexName -ScriptBlock {param($signalPath,$mutexName)$mutex=[Threading.Mutex]::new($false,$mutexName);try{[void]$mutex.WaitOne();[IO.File]::WriteAllText($signalPath,'held');Start-Sleep -Seconds 8}finally{try{$mutex.ReleaseMutex()}catch{};$mutex.Dispose()}}
+  $signal=Join-Path $testRoot 'mutex-held.signal';$releaseSignal=Join-Path $testRoot 'mutex-release.signal'
+  $job=Start-Job -ArgumentList $signal,$releaseSignal,$script:TestMutexName -ScriptBlock {param($signalPath,$releasePath,$mutexName)$mutex=[Threading.Mutex]::new($false,$mutexName);try{[void]$mutex.WaitOne();[IO.File]::WriteAllText($signalPath,'held');$deadline=[DateTime]::UtcNow.AddSeconds(60);while(-not(Test-Path -LiteralPath $releasePath) -and [DateTime]::UtcNow -lt $deadline){Start-Sleep -Milliseconds 100}}finally{try{$mutex.ReleaseMutex()}catch{};$mutex.Dispose()}}
   $waitUntil=[DateTime]::UtcNow.AddSeconds(15);while(-not (Test-Path -LiteralPath $signal) -and [DateTime]::UtcNow -lt $waitUntil){Start-Sleep -Milliseconds 100}
   Assert-Registration (Test-Path -LiteralPath $signal) 'mutex holder started'
-  $busyRejected=$false;try{. $registration -Mailbox $busy.Mailbox -StateDirectory $busy.Root -CompleteMaintenance -MaintenanceApprovalHash $busy.Record.approvalHash}catch{$busyRejected=$true}
-  Assert-Registration $busyRejected 'completion refuses a held shared mutex'
+  $busyError='';try{. $registration -Mailbox $busy.Mailbox -StateDirectory $busy.Root -CompleteMaintenance -MaintenanceApprovalHash $busy.Record.approvalHash}catch{$busyError=[string]$_.Exception.Message}
+  Assert-Registration ($busyError -eq 'Maintenance completion requires the shared mutex to be free.') 'completion refuses a held shared mutex for the expected mutex contention reason'
   Assert-Registration (Test-MaintenanceGate $busy.Gate) 'busy completion preserves durable gate'
   Assert-Registration ($script:FakeTask.State -eq 'Disabled') 'busy completion leaves task disabled'
+  [IO.File]::WriteAllText($releaseSignal,'release')
   Wait-Job $job|Out-Null;Remove-Job $job -Force
 
   # Installed unit tampering fails closed under the acquired mutex.

@@ -6,7 +6,7 @@ Approved by the owner on October 11, 2026 for implementation, read-only inventor
 
 Improve the working classic Outlook COM path for Microsoft 365 Personal: preserve organized job evidence, reduce repeated reads, resume interrupted work, and distinguish accepted uploads from completed processing. Keep unrelated alerts/newsletters in **Job alerts**, without manufacturing applications from them.
 
-Graph remains disabled; November 1 account reset is a future review opportunity. AI remains disabled/$0 paid budget, Worker cron disabled. Preserve Access/server owner authorization, the automation principal's exact three-route allowlist, workspace boundaries and additive ingestion. Planning uses requested Sol 6.1 high; approved implementation uses a fast inexpensive capable model and cost-effective QA.
+Graph remains disabled; November 1 account reset is a future review opportunity. AI remains disabled/$0 paid budget, Worker cron disabled. Preserve Access/server owner authorization, the automation principal's exact three-route allowlist, workspace boundaries and additive ingestion. Planning and validating QA use Sol 6.1 high or Sol 5.6 high, with the same selected model for both roles; implementation uses a faster cost-effective capable model following the approved plan. Follow the [agent execution protocol](agent-protocol.md).
 
 Reviewed collector/uploader/registration/PowerShell scripts, backend local import/identity/sync/Workflow and tests. See [operation](outlook-local-fallback.md), [architecture](architecture.md), [deployment](deployment.md), [QA](qa.md).
 
