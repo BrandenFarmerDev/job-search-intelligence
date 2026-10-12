@@ -1,5 +1,7 @@
 # Release checklist
 
+October 11 Gmail pivot: historical checked boxes below are evidence for their named earlier releases only. They do not accept Gmail or authorize its release. The [routing plan](gmail-routing-plan.md), [ingestion/cutover plan](gmail-ingestion-plan.md) and [independent planning review](gmail-plans-qa.md) define the proposed new gates. Gmail/Live routing remain unconfigured; Windows uploads stay disabled with maintenance enabled. Graph, AI and server scheduling remain disabled. Gmail merge/deployment and schedule activation require separate release authorization and acceptance.
+
 Implementation is in PR #1. Version one uses local Outlook import and the verified Sheets reader; future Graph and optional AI acceptance are separate. Section 21 of the architecture plan is the canonical todo list. Check each item only with evidence for the release being reviewed.
 
 ## Automated and security gates

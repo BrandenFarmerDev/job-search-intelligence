@@ -1,5 +1,7 @@
 # Build QA — October 3, 2026
 
+October 11 Gmail pivot supersedes the Outlook experiment and cleanup next steps below. No accepted restore proof exists and real cleanup never ran. Do not resume COM/PIM experiments. Gmail integration, labels and Live routing are unconfigured; all Gmail provider acceptance remains pending. The Windows uploader stays disabled with maintenance enabled, and the earlier Bitwarden save is unverified. See the [handoff](gmail-pivot-handoff.md), proposed [routing](gmail-routing-plan.md) and [ingestion](gmail-ingestion-plan.md) plans, and [independent planning review](gmail-plans-qa.md).
+
 Branch `bfarmer/scaffold-foundation`; publication and a reviewed PR are authorized.
 
 ## Automated verification

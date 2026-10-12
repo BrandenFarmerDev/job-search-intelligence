@@ -1,5 +1,7 @@
 # Implemented architecture
 
+October 11 Gmail pivot: the sections below describe deployed code, not the accepted target mailbox. The owner selected personal Gmail as the sole future reader, with selective server-side Live redirect. Gmail is not implemented or configured. Outlook collection/cleanup experiments are stopped, its Windows uploader remains disabled with maintenance enabled, and Graph/AI/server scheduling remain disabled. See the [handoff](gmail-pivot-handoff.md), [routing plan](gmail-routing-plan.md) and [ingestion plan](gmail-ingestion-plan.md). Existing owner authorization and production data remain unchanged.
+
 The implementation follows `Job_Intelligence_Architecture_and_Implementation_Plan.md`; section 21 tracks implementation separately from live provider acceptance.
 
 ## Boundaries

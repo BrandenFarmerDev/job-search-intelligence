@@ -1,5 +1,7 @@
 # Deployment and provider setup
 
+October 11 Gmail pivot supersedes the Outlook next steps and any historical statement below that the Windows uploader is enabled or its Bitwarden save is verified. The task is disabled, maintenance remains enabled, and the Bitwarden save is unverified. Gmail, labels and Live redirect are not configured. Do not resume COM experiments, enable ingestion schedules, merge or deploy the Gmail pivot under earlier Outlook authorization. See the [handoff](gmail-pivot-handoff.md) and proposed [ingestion/cutover plan](gmail-ingestion-plan.md); preserve the separate Sheets credentials and all recovery evidence.
+
 PR #1 and deployment fix PR #3 are merged into main. The owner authorized merge and production deployment on October 3; GitHub verification succeeded and `ENABLE_DEPLOYMENTS=true` is saved. Scheduled sync, AI and Graph remain disabled. Preview and production now run final reviewed code; both GitHub deployments and authenticated production health passed.
 
 ## Resource inventory
