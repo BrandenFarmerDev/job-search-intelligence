@@ -9,7 +9,15 @@
   "workers_dev": false,
   "preview_urls": false,
   "observability": {
-    "enabled": false
+    "enabled": false,
+    "redact_query_string": true,
+    "logs": {
+      "enabled": false,
+      "invocation_logs": false
+    },
+    "traces": {
+      "enabled": false
+    }
   },
   "vars": {
     "ACCESS_TEAM_DOMAIN": "cold-union-464d.cloudflareaccess.com",
@@ -104,8 +112,26 @@
         ]
       },
       "observability": {
-        "enabled": false
-      }
+        "enabled": false,
+        "redact_query_string": true,
+        "logs": {
+          "enabled": false,
+          "invocation_logs": false
+        },
+        "traces": {
+          "enabled": false
+        }
+      },
+      "ratelimits": [
+        {
+          "name": "API_RATE_LIMITER",
+          "namespace_id": "2008",
+          "simple": {
+            "limit": 300,
+            "period": 60
+          }
+        }
+      ]
     },
     "production": {
       "name": "job-search-intelligence-api",
@@ -166,8 +192,26 @@
         ]
       },
       "observability": {
-        "enabled": false
-      }
+        "enabled": false,
+        "redact_query_string": true,
+        "logs": {
+          "enabled": false,
+          "invocation_logs": false
+        },
+        "traces": {
+          "enabled": false
+        }
+      },
+      "ratelimits": [
+        {
+          "name": "API_RATE_LIMITER",
+          "namespace_id": "2009",
+          "simple": {
+            "limit": 300,
+            "period": 60
+          }
+        }
+      ]
     }
   },
   "ai": {
@@ -178,6 +222,16 @@
       "binding": "JOB_SYNC",
       "name": "job-intelligence-sync-local",
       "class_name": "JobSyncWorkflow"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "API_RATE_LIMITER",
+      "namespace_id": "2007",
+      "simple": {
+        "limit": 300,
+        "period": 60
+      }
     }
   ]
 }

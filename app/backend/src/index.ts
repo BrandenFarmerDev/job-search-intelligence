@@ -3,6 +3,7 @@ import { apiError, hardenResponse } from "./services/http";
 import { authorize, Problem, type Principal } from "./services/security";
 import { intelligenceRoute } from "./routes/intelligence";
 import { dataGeneration } from "./services/data-generation";
+import { protectRequest } from "./services/request-protection";
 export { JobSyncWorkflow } from "./workflow";
 
 // The only calls the Access service-token principal may make: upload, queue a sync, read run metadata.
@@ -10,9 +11,11 @@ const automationRoutes = new Set(["POST /api/job-intelligence/local-outlook/impo
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const admission = await protectRequest(request, env.API_RATE_LIMITER);
     const origin = request.headers.get("Origin");
     const allowedOrigin = origin === env.ALLOWED_ORIGIN ? origin : null;
-    const finish = (response: Response) => hardenResponse(response, allowedOrigin);
+    const finish = (response: Response) => hardenResponse(request.method === "HEAD" ? new Response(null, { status: response.status, headers: response.headers }) : response, allowedOrigin);
+    if (admission) return finish(admission);
     if (origin !== null && !allowedOrigin) {
       return finish(apiError(403, "origin_not_allowed", "This origin is not allowed."));
     }

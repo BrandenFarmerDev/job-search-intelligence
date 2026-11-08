@@ -1,0 +1,28 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Dependencies, local runtime files and generated evidence are outside release-eligible source; built artifacts are scanned separately."
+paths = [
+  '''(?i)(^|/)node_modules/''',
+  '''(?i)(^|/)\.wrangler/''',
+  '''(?i)(^|/)coverage/''',
+  '''(?i)(^|/)reports/''',
+  '''(?i)(^|/)\.dev\.vars$''',
+]
+
+[[allowlists]]
+description = "Reviewed public Access audience IDs in Worker configuration, not credentials."
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^app/backend/wrangler\.jsonc$''']
+regexTarget = "secret"
+regexes = ['''^e3bb7f883d8b3694227d6cd2296e5af91335b9ffe7836a7073fc2b5d7ce7c72a$''', '''^0437e387d1f293f375b086ed18e6dcbb70448a03cbf9814ba8ed2196b097fab8$''']
+
+[[allowlists]]
+description = "Reviewed deterministic test-only AES key: base64 of the synthetic digits 01234567890123456789012345678901; never a runtime credential."
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^app/backend/src/services/gmail(-oauth-boundaries|-candidate-boundaries)?\.test\.ts$''']
+regexTarget = "secret"
+regexes = ['''^MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=$''']

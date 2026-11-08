@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import worker from "./index";
 
 // Health does not access D1; exercise the generated origin contract without a fake database.
-const env: Pick<Env, "ALLOWED_ORIGIN"> = { ALLOWED_ORIGIN: "http://localhost:5173" };
+const env: Pick<Env, "ALLOWED_ORIGIN" | "API_RATE_LIMITER"> = { ALLOWED_ORIGIN: "http://localhost:5173", API_RATE_LIMITER: { limit: async () => ({ success: true }) } };
 function request(path = "/api/health", method = "GET", origin?: string) {
   return worker.fetch(new Request(`http://localhost${path}`, {
     method, headers: origin === undefined ? {} : { Origin: origin },
