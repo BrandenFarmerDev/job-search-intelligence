@@ -33,7 +33,21 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - name: Install checksum-verified Gitleaks
+        shell: bash
+        run: |
+          archive="gitleaks_8.29.1_linux_x64.tar.gz"
+          curl --fail --show-error --silent --location "https://github.com/gitleaks/gitleaks/releases/download/v8.29.1/$archive" --output "$RUNNER_TEMP/$archive"
+          echo "e4eb209d04e20339d77122a3bdf9cd41351255cfb27ebcb75e85325e04f88924  $RUNNER_TEMP/$archive" | sha256sum --check --status
+          mkdir -p "$RUNNER_TEMP/gitleaks"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/gitleaks" gitleaks
+          echo "GITLEAKS_BINARY=$RUNNER_TEMP/gitleaks/gitleaks" >> "$GITHUB_ENV"
+      - name: Set up official CodeQL CLI
+        id: codeql
+        uses: github/codeql-action/setup-codeql@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
       - run: npm run quality
+        env:
+          CODEQL_BINARY: ${{ steps.codeql.outputs.codeql-path }}
       - name: Upload quality reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -44,6 +58,8 @@ jobs:
             packages/*/coverage/
             coverage/
             reports/jscpd/
+            reports/security/
+            reports/codeql-*/source.sarif
           retention-days: 14
 
   deploy:

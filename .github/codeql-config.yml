@@ -1,0 +1,13 @@
+name: Maintained Jobs source
+paths:
+  - app
+  - packages
+  - scripts
+paths-ignore:
+  - '**/node_modules/**'
+  - '**/dist/**'
+  - '**/coverage/**'
+  - '**/.wrangler/**'
+  - '**/.generated/**'
+  - '**/*.test.*'
+  - '**/test/**'
